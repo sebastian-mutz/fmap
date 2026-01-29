@@ -6,4 +6,5 @@ The worlds are built by successively adding layers of complexity. First, tectoni
 
 
 ![Voronoi cells](voronoi.png)
-*Tectonic plates are imitated by voronoi cells.*
+
+*Tectonic plates are imitated by voronoi cells. You can choose between Manhattan over Euclidean distance to draw the cells.*
