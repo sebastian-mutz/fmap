@@ -5,5 +5,5 @@
 The worlds are built by successively adding layers of complexity. First, tectonic plates are imitated through voronoi cells. These are tagged as oceanic or continental. Mountain ranges are added where expected. Topographic noise is added, and landscapes are modified by a simple, imposed climate.
 
 
-![Tectonic plates are imitated by voronoi cells. \label{fig:fig1}](voronoi.png)
-
+![Voronoi cells](voronoi.png)
+*Tectonic plates are imitated by voronoi cells.*
