@@ -1,6 +1,9 @@
 module fmap_typ
 !! Derived types
 
+  ! load modules
+  use :: fmap_ini
+
   ! basic options
   implicit none
   private
@@ -13,8 +16,8 @@ module fmap_typ
 ! -------------------------------------------------------------------- !
 type :: point
   ! x-y coordinates for a point
-  real :: x
-  real :: y
+  real(wp) :: x
+  real(wp) :: y
 end type point
 
 end module fmap_typ

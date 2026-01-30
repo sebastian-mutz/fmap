@@ -3,6 +3,7 @@ module fmap_mth
 
   ! load modules
   use :: fmap_typ
+  use :: fmap_ini
 
   ! basic options
   implicit none
@@ -17,7 +18,7 @@ contains
 ! -------------------------------------------------------------------- !
 function euclidean_distance(p, q) result(d)
   type(point), intent(in) :: p, q
-  real :: d
+  real(wp)                :: d
   d = sqrt((p%x - q%x)**2 + (p%y - q%y)**2)
 end function euclidean_distance
 
@@ -26,28 +27,29 @@ end function euclidean_distance
 ! -------------------------------------------------------------------- !
 function manhattan_distance(p, q) result(d)
   type(point), intent(in) :: p, q
-  real :: d
+  real(wp)                :: d
   d = abs(p%x - q%x) + abs(p%y - q%y)
 end function manhattan_distance
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine compute_voronoi(nx, ny, sites, dist, grid)
-  integer      , intent(in)  :: nx, ny
-  type(point)  , intent(in)  :: sites(:)
-  character(*) , intent(in)  :: dist
-  integer      , intent(out) :: grid(nx, ny)
-  integer                    :: i, j, k, nearest
-  real                       :: d, dmin
-  type(point)                :: p
+subroutine compute_voronoi(nx, ny, sites, weights, dist, grid)
+  integer(i8) , intent(in)  :: nx, ny
+  type(point) , intent(in)  :: sites(:)
+  real(wp)    , intent(in)  :: weights(:) ! same dimension as sites
+  character(*), intent(in)  :: dist
+  integer(i8) , intent(out) :: grid(nx, ny)
+  integer(i8)               :: i, j, k, nearest
+  real(wp)                  :: d, dmin
+  type(point)               :: p
 
   do j = 1, ny
      do i = 1, nx
 
         ! get points and convert to real
-        p%x = real(i)
-        p%y = real(j)
+        p%x = real(i, kind=wp)
+        p%y = real(j, kind=wp)
 
         ! reset distance and nearest
         dmin = huge(1.0)
@@ -65,6 +67,9 @@ subroutine compute_voronoi(nx, ny, sites, dist, grid)
               case default
                  error stop
            end select
+
+           ! apply weight
+           d = d / weights(k)
 
            ! update nearest
            if (d .lt. dmin) then
