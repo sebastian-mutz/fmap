@@ -14,75 +14,77 @@ module fmap_mth
 
 contains
 
-! ==================================================================== !
-! -------------------------------------------------------------------- !
-function euclidean_distance(p, q) result(d)
-  type(point), intent(in) :: p, q
-  real(wp)                :: d
-  d = sqrt((p%x - q%x)**2 + (p%y - q%y)**2)
-end function euclidean_distance
-
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-function manhattan_distance(p, q) result(d)
-  type(point), intent(in) :: p, q
-  real(wp)                :: d
-  d = abs(p%x - q%x) + abs(p%y - q%y)
-end function manhattan_distance
-
-
-! ==================================================================== !
-! -------------------------------------------------------------------- !
-subroutine compute_voronoi(nx, ny, sites, weights, dist, grid)
+subroutine compute_voronoi(nx, ny, sites, weights, dist, form, grid)
   integer(i8) , intent(in)  :: nx, ny
   type(point) , intent(in)  :: sites(:)
-  real(wp)    , intent(in)  :: weights(:) ! same dimension as sites
-  character(*), intent(in)  :: dist
+  real(wp)    , intent(in)  :: weights(:)
+  character(*), intent(in)  :: dist          !! euclidean or manhattan
+  character(*), intent(in)  :: form          !! flat or sphere
   integer(i8) , intent(out) :: grid(nx, ny)
   integer(i8)               :: i, j, k, nearest
   real(wp)                  :: d, dmin
+  real(wp)                  :: dx, dy, ax, ay
+  real(wp)                  :: rx, ry
   type(point)               :: p
 
   do j = 1, ny
+     p%y = real(j, wp)
+
      do i = 1, nx
+        p%x = real(i, wp)
 
-        ! get points and convert to real
-        p%x = real(i, kind=wp)
-        p%y = real(j, kind=wp)
-
-        ! reset distance and nearest
-        dmin = huge(1.0)
+        dmin = huge(1.0_wp)
         nearest = 1
 
-        ! go through sites; find nearest
         do k = 1, size(sites)
 
-           ! select distance procedure
-           select case(dist)
-              case("euclidean")
-                 d = euclidean_distance(p, sites(k))
-              case("manhattan")
-                 d = manhattan_distance(p, sites(k))
-              case default
-                 error stop
+           ! raw separations
+           dx = p%x - sites(k)%x
+           dy = p%y - sites(k)%y
+
+           ! absolute values
+           ax = abs(dx)
+           ay = abs(dy)
+
+           ! flat vs spherical (tilable)
+           select case (form)
+           case ("flat")
+              rx = ax
+              ry = ay
+           case ("sphere")
+              rx = min(ax, real(nx, wp) - ax)
+              ry = min(ay, real(ny, wp) - ay)
+           case default
+              error stop "unknown shape/form"
+           end select
+
+           ! distance type
+           select case (dist)
+           case ("euclidean")
+              d = sqrt(rx*rx + ry*ry)
+           case ("manhattan")
+              d = rx + ry
+           case default
+              error stop "Unknown distance metric"
            end select
 
            ! apply weight
            d = d / weights(k)
 
-           ! update nearest
            if (d .lt. dmin) then
               dmin = d
               nearest = k
-          endif
-        enddo
+           end if
 
-        ! assign site to grid point
+        end do
+
         grid(i,j) = nearest
 
-     enddo
-  enddo
+     end do
+  end do
 
 end subroutine compute_voronoi
 
