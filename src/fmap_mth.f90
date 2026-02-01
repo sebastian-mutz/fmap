@@ -18,13 +18,13 @@ contains
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
 subroutine compute_voronoi(nx, ny, sites, weights, dist, form, grid)
-  integer(i8) , intent(in)  :: nx, ny
+  integer(i4) , intent(in)  :: nx, ny
   type(point) , intent(in)  :: sites(:)
   real(wp)    , intent(in)  :: weights(:)
   character(*), intent(in)  :: dist          !! euclidean or manhattan
   character(*), intent(in)  :: form          !! flat or sphere
-  integer(i8) , intent(out) :: grid(nx, ny)
-  integer(i8)               :: i, j, k, nearest
+  integer(i4) , intent(out) :: grid(nx, ny)
+  integer(i4)               :: i, j, k, nearest
   real(wp)                  :: d, dmin
   real(wp)                  :: dx, dy, ax, ay
   real(wp)                  :: rx, ry
@@ -41,22 +41,21 @@ subroutine compute_voronoi(nx, ny, sites, weights, dist, form, grid)
 
         do k = 1, size(sites)
 
-           ! raw separations
-           dx = p%x - sites(k)%x
-           dy = p%y - sites(k)%y
+           ! absolute distances separations
+           dx = abs(p%x - sites(k)%x)
+           dy = abs(p%y - sites(k)%y)
 
-           ! absolute values
-           ax = abs(dx)
-           ay = abs(dy)
-
-           ! flat vs spherical (tilable)
+           ! simple, cylinder, seamless (tilable)
            select case (form)
-           case ("flat")
-              rx = ax
-              ry = ay
-           case ("sphere")
-              rx = min(ax, real(nx, wp) - ax)
-              ry = min(ay, real(ny, wp) - ay)
+           case ("simple")
+              rx = dx
+              ry = dy
+           case ("cylinder")
+              rx = min(dx, real(nx, wp) - dx)
+              ry = dy
+           case ("seamless")
+              rx = min(dx, real(nx, wp) - dx)
+              ry = min(dy, real(ny, wp) - dy)
            case default
               error stop "unknown shape/form"
            end select

@@ -6,6 +6,7 @@ module fmap
   use :: fmap_typ
   use :: fmap_mth
   use :: fmap_dat
+  use :: fmap_geo
 
   ! basic options
   implicit none

@@ -10,32 +10,9 @@ module fmap_dat
   private
 
   ! declare public procedures
-  public :: generate_sites, read_sites, write_voronoi_pgm
+  public :: read_sites, write_voronoi_pgm
 
 contains
-
-! ==================================================================== !
-! -------------------------------------------------------------------- !
-subroutine generate_sites(sites, n, width, height)
-    type(point), intent(out) :: sites(n)
-    real(wp)   , intent(in)  :: width, height
-    integer(i8), intent(in)  :: n
-    integer(i4)              :: nseed, i
-    integer(i4), allocatable :: seed(:)
-
-    ! generate seed from single integer seed
-    call random_seed(size = nseed)
-    allocate(seed(nseed))
-    seed = 593742185
-    call random_seed(put = seed)
-
-    do i = 1, n
-       call random_number(sites(i)%x)
-       call random_number(sites(i)%y)
-       sites(i)%x = sites(i)%x * width
-       sites(i)%y = sites(i)%y * height
-  enddo
-end subroutine generate_sites
 
 
 ! ==================================================================== !
@@ -43,7 +20,7 @@ end subroutine generate_sites
 subroutine read_sites(filename, sites)
   character(len=*), intent(in)               :: filename
   type(point)     , intent(out), allocatable :: sites(:)
-  integer(i8)                                :: n, i
+  integer(i4)                                :: n, i
   open(std_rw, file=filename, status='old')
   read(std_rw,*) n
   allocate(sites(n))
@@ -58,10 +35,10 @@ end subroutine read_sites
 ! -------------------------------------------------------------------- !
 subroutine write_voronoi_pgm(filename, grid, nx, ny)
   character(len=*), intent(in) :: filename
-  integer(i8)     , intent(in) :: nx, ny
-  integer(i8)     , intent(in) :: grid(nx, ny)
-  integer(i8)                  :: i, j
-  integer(i8)                  :: pixel
+  integer(i4)     , intent(in) :: nx, ny
+  integer(i4)     , intent(in) :: grid(nx, ny)
+  integer(i4)                  :: i, j
+  integer(i4)                  :: pixel
 
   open(unit=std_rw, file=filename, status='replace', action='write')
 
