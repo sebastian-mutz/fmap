@@ -10,25 +10,62 @@ module fmap_dat
   private
 
   ! declare public procedures
-  public :: read_sites, write_voronoi_pgm
+  public :: write_plates, read_plates, write_voronoi_pgm
 
 contains
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine read_sites(filename, sites)
-  character(len=*), intent(in)               :: filename
-  type(point)     , intent(out), allocatable :: sites(:)
-  integer(i4)                                :: n, i
-  open(std_rw, file=filename, status='old')
-  read(std_rw,*) n
-  allocate(sites(n))
-  do i = 1, n
-     read(std_rw,*) sites(i)%x, sites(i)%y
+subroutine write_plates(outfile, p)
+  character(len=*), intent(in) :: outfile
+  type(typ_plate) , intent(in) :: p(:)
+  integer(i4)                  :: i
+
+  ! write all plate data in rows
+  open(unit=std_rw, file=outfile, status='replace', action='write')
+  do i = 1, size(p)
+     write(std_rw,'(I5, 6F15.2)') p(i)%id, p(i)%loc(1), p(i)%loc(2), &
+                                & p(i)%d, p(i)%w, p(i)%v, p(i)%u
   enddo
   close(std_rw)
-end subroutine read_sites
+
+end subroutine write_plates
+
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+subroutine read_plates(infile, p)
+  character(len=*), intent(in)               :: infile
+  type(typ_plate) , intent(out), allocatable :: p(:)
+  integer                                    :: i, n
+
+  ! open file
+  open(unit=std_rw, file=infile, action='read')
+
+  ! get number of lines (number of plates)
+  n = 0
+  do
+     read(std_rw, '(A)', iostat=i)
+     if (i .ne. 0) exit
+     n = n + 1
+  enddo
+
+  ! allocate
+  allocate(p(n))
+
+  ! rewind and read data
+  rewind(std_rw)
+  do i = 1, n
+     read(std_rw,'(I5, 6F15.2)') p(i)%id, p(i)%loc(1), p(i)%loc(2), &
+                                & p(i)%d, p(i)%w, p(i)%v, p(i)%u
+  enddo
+
+  ! close file
+  close(std_rw)
+
+end subroutine read_plates
+
 
 
 ! ==================================================================== !

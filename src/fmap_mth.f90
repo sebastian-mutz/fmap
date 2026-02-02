@@ -17,33 +17,33 @@ contains
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine compute_voronoi(nx, ny, sites, weights, dist, form, grid)
-  integer(i4) , intent(in)  :: nx, ny
-  type(point) , intent(in)  :: sites(:)
-  real(wp)    , intent(in)  :: weights(:)
-  character(*), intent(in)  :: dist          !! euclidean or manhattan
-  character(*), intent(in)  :: form          !! flat or sphere
-  integer(i4) , intent(out) :: grid(nx, ny)
-  integer(i4)               :: i, j, k, nearest
-  real(wp)                  :: d, dmin
-  real(wp)                  :: dx, dy, ax, ay
-  real(wp)                  :: rx, ry
-  type(point)               :: p
+subroutine compute_voronoi(grid, nx, ny, plates, weights, dist, form)
+  integer(i4)    , intent(in)  :: nx, ny
+  type(typ_plate), intent(in)  :: plates(:)
+  real(wp)       , intent(in)  :: weights(:)
+  character(*)   , intent(in)  :: dist          !! euclidean or manhattan
+  character(*)   , intent(in)  :: form          !! flat or sphere
+  integer(i4)    , intent(out) :: grid(nx, ny)
+  integer(i4)                  :: i, j, k, nearest
+  real(wp)                     :: d, dmin
+  real(wp)                     :: dx, dy, ax, ay
+  real(wp)                     :: rx, ry
+  real(wp)                     :: pos(2)
 
   do j = 1, ny
-     p%y = real(j, wp)
+     pos(2) = real(j, wp)
 
      do i = 1, nx
-        p%x = real(i, wp)
+        pos(1) = real(i, wp)
 
         dmin = huge(1.0_wp)
         nearest = 1
 
-        do k = 1, size(sites)
+        do k = 1, size(plates)
 
            ! absolute distances separations
-           dx = abs(p%x - sites(k)%x)
-           dy = abs(p%y - sites(k)%y)
+           dx = abs(pos(1) - plates(k)%loc(1))
+           dy = abs(pos(2) - plates(k)%loc(2))
 
            ! simple, cylinder, seamless (tilable)
            select case (form)
