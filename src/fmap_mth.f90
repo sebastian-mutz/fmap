@@ -18,73 +18,132 @@ contains
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
 subroutine compute_voronoi(grid, nx, ny, plates, weights, dist, form)
-  integer(i4)    , intent(in)  :: nx, ny
-  type(typ_plate), intent(in)  :: plates(:)
-  real(wp)       , intent(in)  :: weights(:)
-  character(*)   , intent(in)  :: dist          !! euclidean or manhattan
-  character(*)   , intent(in)  :: form          !! flat or sphere
-  integer(i4)    , intent(out) :: grid(nx, ny)
+
+! ==== Description
+!! Computes voronoi cells based on passed options
+!! (incl. distance measures and world form/shape)
+
+! ==== Declarations
+  integer(i4)    , intent(out) :: grid(nx, ny)      !! voronoi grid
+  integer(i4)    , intent(in)  :: nx, ny            !! grid cells
+  type(typ_plate), intent(in)  :: plates(:)         !! passed plates
+  real(wp)       , intent(in)  :: weights(:)        !! plate weights
+  character(*)   , intent(in)  :: dist, form        !! distance measure and world shape
   integer(i4)                  :: i, j, k, nearest
   real(wp)                     :: d, dmin
-  real(wp)                     :: dx, dy, ax, ay
-  real(wp)                     :: rx, ry
-  real(wp)                     :: pos(2)
+  real(wp)                     :: dx, dy, rx, ry
+  real(wp)                     :: posx, posy
+  real(wp)                     :: lambda_p, phi_p
+  real(wp)                     :: lambda_s, phi_s
+  real(wp)                     :: dlambda
+  real(wp), parameter          :: pi = acos(-1.0_wp)
+  real(wp), allocatable        :: weights_inv(:)
+  real(wp)                     :: nx_inv, ny_inv
 
+  ! ==== Instructions
+
+  ! ---- checks
+
+  ! form
+  if (form .eq. "simple" &
+      & .and. form .eq. "cylinder" &
+      & .and. form .eq. "seamless" &
+      & .and. form .eq. "sphere") then
+     error stop "invalid form"
+  endif
+
+  ! distance
+  if (dist .eq. "euclidean" .and. form .eq. "manhattan") then
+     error stop "invalid distance"
+  endif
+
+  ! incompatible options
+  if (form .eq. "sphere" .and. dist .eq. "manhattan") then
+     error stop "sphere requires euclidean distance"
+  endif
+
+  ! ---- precompute constants
+  allocate(weights_inv(size(weights)))
+  weights_inv = 1.0_wp / weights
+  nx_inv = 1.0_wp / real(nx, wp)
+  ny_inv = 1.0_wp / real(max(1_i4, ny-1), wp)
+
+  ! ---- compute voronoi cells
   do j = 1, ny
-     pos(2) = real(j, wp)
+     posy = real(j, wp)
+     if (form .eq. "sphere") then
+        phi_p = pi * (posy - 1.0_wp) * ny_inv - 0.5_wp*pi
+     end if
 
      do i = 1, nx
-        pos(1) = real(i, wp)
+        posx = real(i, wp)
+        if (form .eq. "sphere") then
+           lambda_p = 2.0_wp * pi * (posx - 1.0_wp) * nx_inv
+        end if
 
         dmin = huge(1.0_wp)
         nearest = 1
 
+        ! loop through plate centres
         do k = 1, size(plates)
 
-           ! absolute distances separations
-           dx = abs(pos(1) - plates(k)%loc(1))
-           dy = abs(pos(2) - plates(k)%loc(2))
-
-           ! simple, cylinder, seamless (tilable)
+           ! get distance based on form
            select case (form)
            case ("simple")
+              dx = abs(posx - plates(k)%loc(1))
+              dy = abs(posy - plates(k)%loc(2))
               rx = dx
               ry = dy
            case ("cylinder")
+              dx = abs(posx - plates(k)%loc(1))
+              dy = abs(posy - plates(k)%loc(2))
               rx = min(dx, real(nx, wp) - dx)
               ry = dy
            case ("seamless")
+              dx = abs(posx - plates(k)%loc(1))
+              dy = abs(posy - plates(k)%loc(2))
               rx = min(dx, real(nx, wp) - dx)
               ry = min(dy, real(ny, wp) - dy)
-           case default
-              error stop "unknown shape/form"
+           case ("sphere")
+              lambda_s = 2.0_wp * pi * (plates(k)%loc(1)-1.0_wp) * nx_inv
+              phi_s    = pi * (plates(k)%loc(2) - 1.0_wp) * &
+                       & ny_inv - 0.5_wp * pi
+              dlambda  = abs(lambda_p - lambda_s)
+              dlambda  = min(dlambda, 2.0_wp * pi - dlambda)
+              d        = acos(sin(phi_p)*sin(phi_s) + &
+                       & cos(phi_p) * cos(phi_s) * cos(dlambda))
+              d        = d * weights_inv(k)
+              if (d .lt. dmin) then
+                 dmin = d
+                 nearest = k
+              endif
+              cycle ! ignore planar distance block
            end select
 
-           ! distance type
-           select case (dist)
-           case ("euclidean")
-              d = sqrt(rx*rx + ry*ry)
-           case ("manhattan")
-              d = rx + ry
-           case default
-              error stop "Unknown distance metric"
-           end select
+           ! planar distance
+           if (form .ne. "sphere") then
+              select case (dist)
+              case ("euclidean")
+                 d = sqrt(rx * rx + ry * ry)
+              case ("manhattan")
+                 d = rx + ry
+              end select
+              d = d * weights_inv(k)
+              if (d .lt. dmin) then
+                 dmin = d
+                 nearest = k
+              endif
+           endif
 
-           ! apply weight
-           d = d / weights(k)
-
-           if (d .lt. dmin) then
-              dmin = d
-              nearest = k
-           end if
-
-        end do
-
+        enddo
         grid(i,j) = nearest
+     enddo
+  enddo
 
-     end do
-  end do
+  ! deallocate
+  deallocate(weights_inv)
 
 end subroutine compute_voronoi
+
 
 end module fmap_mth

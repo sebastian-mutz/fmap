@@ -63,6 +63,7 @@ subroutine generate_plates(plates, world, iseed)
   type(typ_plate), intent(out), allocatable :: plates(:) !! tectonic plates
   integer(i4)    , allocatable              :: seed(:)   !! seed array
   integer(i4)                               :: i         !! flexible integer
+  real(wp)                                  :: a, b
 
 ! ==== Instructions
 
@@ -100,13 +101,28 @@ subroutine generate_plates(plates, world, iseed)
 
   ! generate random sites within map bounds
   do i = 1, world%np
+
+     ! generate random x (lon) coordinates
      call random_number(plates(i)%loc(1))
-     call random_number(plates(i)%loc(2))
+     !call random_number(plates(i)%loc(2))
+
+     ! generate y (lat) coordinates with shperical weighting
+     ! (fewer points at poles to account for spherical shape)
+     do
+        call random_number(a)
+        call random_number(b)
+        a = 2.0_wp * a - 1.0_wp
+        b = 2.0_wp * b - 1.0_wp
+        if (a * a + b * b .le. 1.0_wp) exit
+     enddo
+     plates(i)%loc(2) = 0.5_wp*(a + 1.0_wp)
+
+     ! scale to fit resolution
      plates(i)%loc(1) = plates(i)%loc(1) * real(world%nx, kind=wp)
      plates(i)%loc(2) = plates(i)%loc(2) * real(world%ny, kind=wp)
   enddo
 
-  ! determine density
+  ! generate plate density
   do i = 1, world%np
      ! generate random densities between 0.0 and 1.0
      call random_number(plates(i)%d)
