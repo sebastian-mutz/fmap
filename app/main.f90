@@ -13,7 +13,9 @@ program voronoi_main
   call fmap_generate_plates(plates, world, seed)
   !call fmap_write_plates("plates.asc", plates)
   !call fmap_read_plates("plates.asc", plates)
-  call fmap_compute_voronoi(grid, nx, ny, plates, weights, "euclidean", "sphere")
+  plates%w = weights
+  !call fmap_compute_voronoi(grid, nx, ny, plates, "euclidean", "sphere")
+  call fmap_compute_voronoi(grid, nx, ny, plates, "manhattan", "seamless")
   call fmap_write_voronoi_pgm('voronoi.pgm', grid, nx, ny)
 
 end program voronoi_main
