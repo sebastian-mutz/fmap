@@ -45,9 +45,9 @@ subroutine compute_voronoi(grid, nx, ny, plates, dist, form)
   ! ---- checks
 
   ! form
-  if (form .eq. "simple" &
+  if (form .eq. "flat" &
       & .and. form .eq. "cylinder" &
-      & .and. form .eq. "seamless" &
+      & .and. form .eq. "torus" &
       & .and. form .eq. "sphere") then
      error stop "invalid form"
   endif
@@ -70,9 +70,10 @@ subroutine compute_voronoi(grid, nx, ny, plates, dist, form)
 
   ! ---- compute voronoi cells
   do j = 1, ny
+     ! get y/lat position of current grid cell
      posy = real(j, wp)
      if (form .eq. "sphere") then
-        lat_g = pi * (posy - 1.0_wp) * ny_inv - 0.5_wp*pi
+        lat_g = pi * (posy - 1.0_wp) * ny_inv - 0.5_wp * pi
      end if
 
      do i = 1, nx
@@ -81,44 +82,52 @@ subroutine compute_voronoi(grid, nx, ny, plates, dist, form)
            lon_g = 2.0_wp * pi * (posx - 1.0_wp) * nx_inv
         end if
 
+        ! reset
         dmin = huge(1.0_wp)
         nearest = 1
 
         ! loop through plate centres
         do k = 1, size(plates)
 
-           ! get distance based on form
            select case (form)
+
            ! flat; does not need to tile seamlessly
-           case ("simple")
+           case ("flat")
               dx = abs(posx - plates(k)%loc(1))
               dy = abs(posy - plates(k)%loc(2))
+
            ! cylinder; tiles seamlessly along x axis
            case ("cylinder")
               dx = abs(posx - plates(k)%loc(1))
               dy = abs(posy - plates(k)%loc(2))
               dx = min(dx, real(nx, wp) - dx)
+
            ! torus; tiles seamlessly along x and y axis
-           case ("seamless")
+           case ("torus")
               dx = abs(posx - plates(k)%loc(1))
               dy = abs(posy - plates(k)%loc(2))
               dx = min(dx, real(nx, wp) - dx)
               dy = min(dy, real(ny, wp) - dy)
+
            ! spherical
            case ("sphere")
+              ! get plate loc in radians
               lon_p = 2.0_wp * pi * (plates(k)%loc(1)-1.0_wp) * nx_inv
-              lat_p = pi * (plates(k)%loc(2) - 1.0_wp) * &
-                    & ny_inv - 0.5_wp * pi
+              lat_p = pi * (plates(k)%loc(2) - 1.0_wp) * ny_inv - 0.5_wp * pi
+              ! get min long difference
               dlon  = abs(lon_g - lon_p)
               dlon  = min(dlon, 2.0_wp * pi - dlon)
+              ! get distance
               d     = acos(sin(lat_g)*sin(lat_p) + &
                     & cos(lat_g) * cos(lat_p) * cos(dlon))
               d     = d * weights_inv(k)
+              ! update minimum distance if needed
               if (d .lt. dmin) then
                  dmin = d
                  nearest = k
               endif
-              cycle ! ignore planar distance block
+              ! ignore planar distance block when done
+              cycle
            end select
 
            ! planar distance
@@ -135,8 +144,9 @@ subroutine compute_voronoi(grid, nx, ny, plates, dist, form)
                  nearest = k
               endif
            endif
-
         enddo
+
+        ! update grid
         grid(i,j) = nearest
      enddo
   enddo

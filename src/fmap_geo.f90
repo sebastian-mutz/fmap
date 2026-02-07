@@ -52,7 +52,7 @@ end subroutine generate_world
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_plates(plates, world, iseed)
+subroutine generate_plates(plates, world, iseed, form)
 
 ! ==== Description
 !! Generate geographical sites (coordinates) on specified domain.
@@ -60,12 +60,23 @@ subroutine generate_plates(plates, world, iseed)
 ! ==== Declarations
   type(typ_world), intent(in)               :: world     !! world settings
   integer(i4)    , intent(in) , optional    :: iseed     !! single seed
+  character(*)   , intent(in) , optional    :: form      !! world form; determines plate seed p
   type(typ_plate), intent(out), allocatable :: plates(:) !! tectonic plates
   integer(i4)    , allocatable              :: seed(:)   !! seed array
+  integer(i4)                               :: w_iseed   !! working seed integer
+  character(64)                             :: w_form    !! working form
   integer(i4)                               :: i         !! flexible integer
   real(wp)                                  :: a, b
 
 ! ==== Instructions
+
+  ! use default seed if not passed
+  w_iseed = 593742185
+  if (present(iseed)) w_iseed = iseed
+
+  ! use default form if not passed
+  w_form = "torus"
+  if (present(form)) w_form = trim(form)
 
 ! ---- plate initialisation
 
@@ -88,13 +99,7 @@ subroutine generate_plates(plates, world, iseed)
   ! generate seed from single integer seed
   call random_seed(size = i)
   allocate(seed(i))
-
-  ! use default seed if not passed as arg
-  if (present(iseed)) then
-     seed = iseed
-  else
-     seed = 593742185
-  endif
+  seed = w_iseed
 
   ! set seed
   call random_seed(put = seed)
@@ -104,18 +109,25 @@ subroutine generate_plates(plates, world, iseed)
 
      ! generate random x (lon) coordinates
      call random_number(plates(i)%loc(1))
-     !call random_number(plates(i)%loc(2))
 
+     select case (w_form)
+     ! no geographical bias in plate seeding
+     case ("flat", "cylinder", "torus")
+        call random_number(plates(i)%loc(2))
      ! generate y (lat) coordinates with shperical weighting
      ! (fewer points at poles to account for spherical shape)
-     do
-        call random_number(a)
-        call random_number(b)
-        a = 2.0_wp * a - 1.0_wp
-        b = 2.0_wp * b - 1.0_wp
-        if (a * a + b * b .le. 1.0_wp) exit
-     enddo
-     plates(i)%loc(2) = 0.5_wp*(a + 1.0_wp)
+     case ("sphere")
+        do
+           call random_number(a)
+           call random_number(b)
+           a = 2.0_wp * a - 1.0_wp
+           b = 2.0_wp * b - 1.0_wp
+           if (a * a + b * b .le. 1.0_wp) exit
+        enddo
+        plates(i)%loc(2) = 0.5_wp * (a + 1.0_wp)
+     case default
+        error stop "invalid shape/form"
+     end select
 
      ! scale to fit resolution
      plates(i)%loc(1) = plates(i)%loc(1) * real(world%nx, kind=wp)

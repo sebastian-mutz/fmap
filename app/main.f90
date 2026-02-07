@@ -10,12 +10,12 @@ program voronoi_main
   type(typ_plate), allocatable :: plates(:)
 
   call fmap_generate_world(world, nx, ny, np)
-  call fmap_generate_plates(plates, world, seed)
+  call fmap_generate_plates(plates, world, seed, "sphere")
+  !plates%w = weights
   !call fmap_write_plates("plates.asc", plates)
   !call fmap_read_plates("plates.asc", plates)
-  plates%w = weights
-  !call fmap_compute_voronoi(grid, nx, ny, plates, "euclidean", "sphere")
-  call fmap_compute_voronoi(grid, nx, ny, plates, "manhattan", "seamless")
+  call fmap_compute_voronoi(grid, nx, ny, plates, "euclidean", "sphere")
+  !call fmap_compute_voronoi(grid, nx, ny, plates, "manhattan", "torus")
   call fmap_write_voronoi_pgm('voronoi.pgm', grid, nx, ny)
 
 end program voronoi_main
