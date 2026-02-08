@@ -10,4 +10,5 @@ The worlds are built by successively adding layers of complexity. First, tectoni
 *Tectonic plates are imitated by voronoi cells. You can choose between Manhattan over Euclidean distance and a flat, cylindrical, torus or spherical world shape to draw the cells. The continents at the top are generated using the the torus shape (seamless texturing) and Manhattan distance. The world at the bottom is spherical, and the cells are generated using the Euclidean distance.*
 
 ![Land sea mask](landsea.png)
+
 *You can set the % of the surface to be covered by oceans. This will make the world generator assign different densities to tectonic plates. Dark grey represent oceans, while lighter grey are land.*
