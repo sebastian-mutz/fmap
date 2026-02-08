@@ -11,4 +11,4 @@ The worlds are built by successively adding layers of complexity. First, tectoni
 
 ![Land sea mask](landsea.png)
 
-*You can set the % of the surface to be covered by oceans. This will make the world generator assign different densities to tectonic plates. Dark grey represent oceans, while lighter grey are land.*
+*You can set the % of the surface to be covered by oceans. This will make the world generator assign different densities to tectonic plates. Dark grey represents oceans, while lighter grey represents land.*
