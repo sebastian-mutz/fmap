@@ -10,7 +10,7 @@ module fmap_dat
   private
 
   ! declare public procedures
-  public :: write_plates, read_plates, write_voronoi_pgm
+  public :: write_plates, read_plates, write_plates_pgm
 
 contains
 
@@ -70,7 +70,7 @@ end subroutine read_plates
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine write_voronoi_pgm(filename, grid, plates)
+subroutine write_plates_pgm(filename, world)
 
 ! ==== Description
 !! Write world grid/plates into a PGM file. The grid is rank-2 array
@@ -81,10 +81,8 @@ subroutine write_voronoi_pgm(filename, grid, plates)
 
 ! ==== Declarations
   character(len=*), intent(in)  :: filename   !! image file name
-  integer(i4)     , intent(in)  :: grid(:,:)  !! world grid
-  type(typ_plate) , intent(in)  :: plates(:)  !! plates
+  type(typ_world) , intent(in)  :: world      !! world
   integer(i4)     , allocatable :: col(:)     !! plate specific colour
-  integer(i4)                   :: nx, ny, np !! no. of lons, lats, and plates
   integer(i4)                   :: i, j
   integer(i4)                   :: pixel_col
 
@@ -92,19 +90,14 @@ subroutine write_voronoi_pgm(filename, grid, plates)
 
   ! ---- prep
 
-  ! get nx and ny from grid, and number of plates
-  nx = size(grid, dim=1)
-  ny = size(grid, dim=2)
-  np = size(plates)
-
   ! prepate colours (split up grey space) (upper 100; reserve dark for oceans)
-  if (np .ge. 100) then
+  if (world%np .ge. 100) then
      error stop "max. plate number for plotting exceeded"
   endif
-  allocate(col(np))
-  j = 100/(np + 1)  ! get grey scale steps for no. of plates; leave space for boundary
+  allocate(col(world%np))
+  j = 100/(world%np + 1)  ! get grey scale steps for no. of plates; leave space for boundary
   col(1) = 155 + j
-  do i = 2, np
+  do i = 2, world%np
      col(i) = col(i-1) + j ! set grey tones per plate
   enddo
 
@@ -113,30 +106,31 @@ subroutine write_voronoi_pgm(filename, grid, plates)
 
   ! --- PGM header
   write(std_rw,'(A)') 'P2'
-  write(std_rw,'(I0,1X,I0)') nx, ny
+  write(std_rw,'(I0,1X,I0)') world%nx, world%ny
   write(std_rw,'(I0)') 255
 
   ! --- image data
-  do j = 1, ny
-     do i = 1, nx
-        if (i .lt. nx .and. j .lt. ny) then
+  do j = 1, world%ny
+     do i = 1, world%nx
+        if (i .lt. world%nx .and. j .lt. world%ny) then
            ! check if plate boundary and assign colour
-           if (grid(i,j) .ne. grid(i+1,j) .or. grid(i,j) .ne. grid(i,j+1)) then
+           if (world%plate_mask(i,j) .ne. world%plate_mask(i+1,j) .or. &
+              & world%plate_mask(i,j) .ne. world%plate_mask(i,j+1)) then
               pixel_col = 0
            else
               ! determine non-boundary pixel colour
-              if (plates( grid(i,j) )%d .eq. 1.0_wp) then
+              if (world%plates( world%plate_mask(i,j) )%d .eq. 1.0_wp) then
                  pixel_col = 80               ! ocean plates
               else
-                 pixel_col = col( grid(i,j) ) ! plate specific colour
+                 pixel_col = col( world%plate_mask(i,j) ) ! plate specific colour
               endif
            endif
         else
            ! determine non-boundary pixel colour
-           if (plates( grid(i,j) )%d .eq. 1.0_wp) then
+           if (world%plates( world%plate_mask(i,j) )%d .eq. 1.0_wp) then
               pixel_col = 50               ! ocean plates
            else
-              pixel_col = col( grid(i,j) ) ! plate specific colour
+              pixel_col = col( world%plate_mask(i,j) ) ! plate specific colour
            endif
         endif
 
@@ -149,7 +143,7 @@ subroutine write_voronoi_pgm(filename, grid, plates)
 
   deallocate(col)
 
-end subroutine write_voronoi_pgm
+end subroutine write_plates_pgm
 
 end module fmap_dat
 

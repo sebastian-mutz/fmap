@@ -18,8 +18,8 @@ module fmap
 
   ! public procedures
   public :: fmap_generate_world, fmap_generate_plates
-  public :: fmap_compute_voronoi
-  public :: fmap_write_plates, fmap_read_plates, fmap_write_voronoi_pgm
+  public :: fmap_generate_voronoi_plates
+  public :: fmap_write_plates, fmap_read_plates, fmap_write_plates_pgm
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
@@ -51,16 +51,16 @@ end interface
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-interface fmap_compute_voronoi
+interface fmap_generate_voronoi_plates
   !! computes voronoi cells
-  module procedure compute_voronoi
+  module procedure generate_voronoi_plates
 end interface
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-interface fmap_write_voronoi_pgm
+interface fmap_write_plates_pgm
   !! writes voronoi cells into file
-  module procedure write_voronoi_pgm
+  module procedure write_plates_pgm
 end interface
 
 end module fmap
