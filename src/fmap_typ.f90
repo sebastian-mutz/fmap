@@ -41,8 +41,7 @@ type :: typ_plate
   real(wp)    :: loc(2) !! position; x-y coordinates
   real(wp)    :: d      !! density abstraction; 0.0 = continental, 1.0 = oceanic
   real(wp)    :: w      !! (mathematical) weight determines plate size; 1.0 = default
-  real(wp)    :: v      !! velocity v component (meridional)
-  real(wp)    :: u      !! velocity u component (zonal)
+  real(wp)    :: v(2)   !! velocity components (x/meridional, y/zonal)
 
 end type typ_plate
 

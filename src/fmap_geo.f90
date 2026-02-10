@@ -12,7 +12,7 @@ module fmap_geo
   private
 
   ! declare public procedures
-  public :: generate_world, generate_plates
+  public :: generate_world, generate_plates, generate_plate_movement
 
 contains
 
@@ -68,6 +68,9 @@ subroutine generate_world(world, seed, nx, ny, np, sea, spin, form)
   ! generate plate mask by computing voronoi cells around plate sites
   call generate_voronoi_plates(world, "euclidean", world%form)
 
+  ! generate and balance plate movement
+  call generate_plate_movement(world, world%form)
+
 end subroutine generate_world
 
 
@@ -79,14 +82,14 @@ subroutine generate_plates(world, iseed, form)
 !! Generate geographical sites (coordinates) on specified domain.
 
 ! ==== Declarations
-  type(typ_world), intent(inout)            :: world     !! world
-  integer(i4)    , intent(in) , optional    :: iseed     !! single seed
-  character(*)   , intent(in) , optional    :: form      !! world form; determines plate seed p
-  integer(i4)    , allocatable              :: seed(:)   !! seed array
-  integer(i4)                               :: w_iseed   !! working seed integer
-  character(64)                             :: w_form    !! working form
-  integer(i4)                               :: i         !! flexible integer
-  real(wp)                                  :: a, b
+  type(typ_world), intent(inout)         :: world   !! world
+  integer(i4)    , intent(in) , optional :: iseed   !! single seed
+  character(*)   , intent(in) , optional :: form    !! world form; determines plate seed p
+  integer(i4)    , allocatable           :: seed(:) !! seed array
+  integer(i4)                            :: w_iseed !! working seed integer
+  character(64)                          :: w_form  !! working form
+  integer(i4)                            :: i       !! flexible integer
+  real(wp)                               :: a, b
 
 ! ==== Instructions
 
@@ -103,12 +106,10 @@ subroutine generate_plates(world, iseed, form)
   ! initialise plates
   do i = 1, world%np
      world%plates%id     = i      ! unique ID
-     world%plates%loc(1) = 0.0_wp ! y/lon coordinate
-     world%plates%loc(2) = 0.0_wp ! y/lat coordinate
-     world%plates%d      = 1.0_wp ! abstract density; oceanic plate
-     world%plates%w      = 1.0_wp ! default weights (determines size/importance)
-     world%plates%v      = 0.0_wp ! no v movement
-     world%plates%u      = 0.0_wp ! no u movement
+     world%plates(i)%loc = 0.0_wp ! x/lon and y/lat coordinates (loc(2))
+     world%plates(i)%d   = 1.0_wp ! abstract density; oceanic plate
+     world%plates(i)%w   = 1.0_wp ! default weights (determines size/importance)
+     world%plates(i)%v   = 0.0_wp ! x/lon and y/lat velocities (v(2))
   enddo
 
 ! ---- generate plate locations
@@ -160,6 +161,128 @@ subroutine generate_plates(world, iseed, form)
   enddo
 
 end subroutine generate_plates
+
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+subroutine generate_plate_movement(world, form)
+
+! ==== Description
+!! Generates random plate velocities for either plane or sphere, with zero
+!! net momentum (mean subtracted).
+
+! ==== Declarations
+  type(typ_world), intent(inout)         :: world            !! world
+  character(*)   , intent(in) , optional :: form             !! world form; determines plate seed p
+  character(64)                          :: w_form           !! working form
+  real(wp)                               :: mu_v(2)          !! mean of x/u & y/v velocities
+  real(wp)                               :: cv(3)            !! cartesian velocity components (x,y,z)
+  real(wp)                               :: mu_cv(3)         !! means of cartesian velocity components
+  real(wp)                               :: sin_lon, cos_lon !! sin & cos of lon
+  real(wp)                               :: sin_lat, cos_lat !! sin & cos of lat
+  real(wp)                               :: norm(3)          !! surface normal vector
+  real(wp)                               :: dot              !! cv * norm
+  integer                                :: i                !! loop integer
+
+! ==== Instructions
+
+  ! use world form if not passed
+  w_form = world%form
+  if (present(form)) w_form = trim(form)
+
+  !---- random initial velocities (u,v)
+  do i = 1, world%np
+     call random_number(world%plates(i)%v(1))
+     call random_number(world%plates(i)%v(2))
+
+     ! map to [-1,1]
+     world%plates(i)%v(1) = 2.0_wp * world%plates(i)%v(1) - 1.0_wp
+     world%plates(i)%v(2) = 2.0_wp * world%plates(i)%v(2) - 1.0_wp
+  enddo
+
+  ! ---- plane: subtract mean directly
+  if ( w_form .ne. "sphere") then
+
+     ! set means to 0
+     mu_v = 0.0_wp
+
+     ! sum up velocities
+     do i = 1, world%np
+        mu_v = mu_v + world%plates(i)%v
+     enddo
+
+     ! get mean velocities
+     mu_v = mu_v / real(world%np, wp)
+
+     ! subtract mean velocities
+     do i = 1, world%np
+        world%plates(i)%v = world%plates(i)%v - mu_v
+     enddo
+
+     return
+  endif
+
+  ! ---- sphere: compute cartesian mean velocity
+
+  ! reset mean cartesian velocities
+  mu_cv = 0.0_wp
+
+  do i = 1, world%np
+
+     ! get sin and cos of lon and lat
+     sin_lon = sin( world%plates(i)%loc(1) )
+     cos_lon = cos( world%plates(i)%loc(1) )
+     sin_lat = sin( world%plates(i)%loc(2) )
+     cos_lat = cos( world%plates(i)%loc(2) )
+
+     ! get cartesian velocity components
+     cv(1) = -world%plates(i)%v(1) * sin_lon - &
+           & world%plates(i)%v(2)  * sin_lat * cos_lon
+     cv(2) = world%plates(i)%v(1)  * cos_lon - &
+           & world%plates(i)%v(2)  * sin_lat*sin_lon
+     cv(3) = world%plates(i)%v(2)  * cos_lat
+
+     ! sum up velocities
+     mu_cv = mu_cv + cv
+
+  enddo
+
+  ! get mean cartesian velocities
+  mu_cv = mu_cv / real(world%np, wp)
+
+  ! ---- subtract mean, project to tangent plane
+  do i = 1, world%np
+
+     ! get sin and cos of lon and lat
+     sin_lon = sin( world%plates(i)%loc(1) )
+     cos_lon = cos( world%plates(i)%loc(1) )
+     sin_lat = sin( world%plates(i)%loc(2) )
+     cos_lat = cos( world%plates(i)%loc(2) )
+
+     ! get anomalies of cartesian velocity components
+     cv(1) = -world%plates(i)%v(1) * sin_lon - &
+           & world%plates(i)%v(2)  * sin_lat*cos_lon - mu_cv(1)
+     cv(2) = world%plates(i)%v(1)  * cos_lon - &
+           & world%plates(i)%v(2)  * sin_lat*sin_lon - mu_cv(2)
+     cv(3) = world%plates(i)%v(2)  * cos_lat - mu_cv(3)
+
+     ! surface normal
+     norm(1) = cos_lat * cos_lon
+     norm(2) = cos_lat * sin_lon
+     norm(3) = sin_lat
+
+     ! project once
+     dot = sum(cv * norm)
+     cv = cv - dot * norm
+
+     ! back to u,v
+     world%plates(i)%v(1) = -cv(1) * sin_lon + cv(2) * cos_lon
+     world%plates(i)%v(2) = -cv(1) * sin_lat*cos_lon - &
+                          &  cv(2) * sin_lat * sin_lon + cv(3) * cos_lat
+  enddo
+
+end subroutine generate_plate_movement
+
 
 end module fmap_geo
 

@@ -26,7 +26,7 @@ subroutine write_plates(outfile, p)
   open(unit=std_rw, file=outfile, status='replace', action='write')
   do i = 1, size(p)
      write(std_rw,'(I5, 6F15.2)') p(i)%id, p(i)%loc(1), p(i)%loc(2), &
-                                & p(i)%d, p(i)%w, p(i)%v, p(i)%u
+                                & p(i)%d, p(i)%w, p(i)%v(1), p(i)%v(1)
   enddo
   close(std_rw)
 
@@ -58,7 +58,7 @@ subroutine read_plates(infile, p)
   rewind(std_rw)
   do i = 1, n
      read(std_rw,'(I5, 6F15.2)') p(i)%id, p(i)%loc(1), p(i)%loc(2), &
-                                & p(i)%d, p(i)%w, p(i)%v, p(i)%u
+                                & p(i)%d, p(i)%w, p(i)%v(1), p(i)%v(2)
   enddo
 
   ! close file
@@ -75,75 +75,127 @@ subroutine write_plates_pgm(filename, world)
 ! ==== Description
 !! Write world grid/plates into a PGM file. The grid is rank-2 array
 !! (masks) of plate ID numbers. The plates variable stores plate attributes.
-!! The 155-255 colour space is subdivited between plates and each plate is
+!! The 155-255 colour space is subdivided between plates and each plate is
 !! assigned its own grey shade. Ocean plates are given a darker colour in the
 !! 1-155 grey space. Plate boundaries are black (0).
+!! Additionally, it draws a line from each plate centre representing velocity
+!! direction. Centre pixel is white, line is black.
 
 ! ==== Declarations
-  character(len=*), intent(in)  :: filename   !! image file name
-  type(typ_world) , intent(in)  :: world      !! world
-  integer(i4)     , allocatable :: col(:)     !! plate specific colour
-  integer(i4)                   :: i, j
-  integer(i4)                   :: pixel_col
+  character(len=*), intent(in)  :: filename     !! image file name
+  type(typ_world) , intent(in)  :: world        !! world
+  integer(i4), allocatable      :: col(:)       !! plate specific colours
+  integer(i4), allocatable      :: image(:,:)   !! temporary image buffer
+  integer(i4)                   :: i, j, k, p   !! loop indices and plate index
+  integer(i4)                   :: xi, yi       !! line pixel coordinates
+  integer(i4)                   :: length       !! line length in pixels
+  real(wp)                      :: sfac, dx, dy !! velocity line scaling factor, line step
+  integer(i4)                   :: s            !! line step counter
 
 ! ==== Instructions
 
-  ! ---- prep
-
-  ! prepate colours (split up grey space) (upper 100; reserve dark for oceans)
+  ! ---- prepare colours for plates
   if (world%np .ge. 100) then
      error stop "max. plate number for plotting exceeded"
   endif
   allocate(col(world%np))
-  j = 100/(world%np + 1)  ! get grey scale steps for no. of plates; leave space for boundary
-  col(1) = 155 + j
-  do i = 2, world%np
-     col(i) = col(i-1) + j ! set grey tones per plate
+  i = 100/(world%np + 1)             ! grey scale step
+  col(1) = 155 + i
+  do k = 2, world%np
+     col(k) = col(k-1) + i           ! assign grey tones per plate
   enddo
 
-  ! open file
-  open(unit=std_rw, file=filename, status='replace', action='write')
+  ! ---- allocate temporary image buffer
+  allocate(image(world%nx, world%ny))
 
-  ! --- PGM header
+  ! ---- fill image with base colours and plate boundaries
+  do j = 1, world%ny
+     do i = 1, world%nx
+        if (i .lt. world%nx .and. j .lt. world%ny) then
+           ! check for plate boundary
+           if (world%plate_mask(i,j) .ne. world%plate_mask(i+1,j) .or. &
+               world%plate_mask(i,j) .ne. world%plate_mask(i,j+1)) then
+              image(i,j) = 0           ! boundary = black
+           else
+              ! assign plate colour or ocean colour
+              p = world%plate_mask(i,j)
+              if (world%plates(p)%d .eq. 1.0_wp) then
+                 image(i,j) = 80       ! ocean plates
+              else
+                 image(i,j) = col(p)   ! plate specific grey
+              endif
+           endif
+        else
+           ! edges of the grid
+           p = world%plate_mask(i,j)
+           if (world%plates(p)%d .eq. 1.0_wp) then
+              image(i,j) = 50           ! ocean plates
+           else
+              image(i,j) = col(p)
+           endif
+        endif
+     enddo
+  enddo
+
+  ! ---- overlay velocity lines for each plate
+
+  ! scale factor for velocity line lengths (fraction of world width)
+  sfac = 0.05_wp * real(world%nx, wp)
+
+  do k = 1, world%np
+
+     ! ---- compute line length in pixels proportional to velocity magnitude
+     length = max(1, int(sqrt(world%plates(k)%v(1) * world%plates(k)%v(1) + &
+            & world%plates(k)%v(2) * world%plates(k)%v(2)) * sfac + 0.5_wp))
+
+     ! ---- normalized direction steps
+     if (world%plates(k)%v(1)*world%plates(k)%v(1) + world%plates(k)%v(2) * &
+      & world%plates(k)%v(2) .gt. 0.0_wp) then
+        dx = world%plates(k)%v(1) / sqrt(world%plates(k)%v(1) * &
+           & world%plates(k)%v(1) + world%plates(k)%v(2) * &
+           & world%plates(k)%v(2))
+        dy = world%plates(k)%v(2) / sqrt(world%plates(k)%v(1) * &
+           & world%plates(k)%v(1) + world%plates(k)%v(2) * &
+           & world%plates(k)%v(2))
+     else
+        dx = 0.0_wp
+        dy = 0.0_wp
+     endif
+
+     ! ---- draw line from center along velocity direction
+     do s = 1, length
+        xi = world%plates(k)%loc(1) + int(dx * s + 0.5_wp)
+        yi = world%plates(k)%loc(2) + int(dy * s + 0.5_wp)
+        if (xi .ge. 1 .and. xi .le. world%nx .and. &
+          & yi .ge. 1 .and. yi .le. world%ny) then
+           image(xi, yi) = 0         ! white pixel
+        endif
+     enddo
+
+     ! ---- center pixel black
+     image(world%plates(k)%loc(1), world%plates(k)%loc(2)) = 255
+
+  enddo
+
+  ! ---- write PGM file
+  open(unit=std_rw, file=filename, status='replace', action='write')
   write(std_rw,'(A)') 'P2'
   write(std_rw,'(I0,1X,I0)') world%nx, world%ny
   write(std_rw,'(I0)') 255
 
-  ! --- image data
   do j = 1, world%ny
      do i = 1, world%nx
-        if (i .lt. world%nx .and. j .lt. world%ny) then
-           ! check if plate boundary and assign colour
-           if (world%plate_mask(i,j) .ne. world%plate_mask(i+1,j) .or. &
-              & world%plate_mask(i,j) .ne. world%plate_mask(i,j+1)) then
-              pixel_col = 0
-           else
-              ! determine non-boundary pixel colour
-              if (world%plates( world%plate_mask(i,j) )%d .eq. 1.0_wp) then
-                 pixel_col = 80               ! ocean plates
-              else
-                 pixel_col = col( world%plate_mask(i,j) ) ! plate specific colour
-              endif
-           endif
-        else
-           ! determine non-boundary pixel colour
-           if (world%plates( world%plate_mask(i,j) )%d .eq. 1.0_wp) then
-              pixel_col = 50               ! ocean plates
-           else
-              pixel_col = col( world%plate_mask(i,j) ) ! plate specific colour
-           endif
-        endif
-
-        write(std_rw,'(I0,1X)', advance='no') pixel_col
+        write(std_rw,'(I0,1X)', advance='no') image(i,j)
      enddo
      write(std_rw,*)
   enddo
 
   close(std_rw)
-
+  deallocate(image)
   deallocate(col)
 
 end subroutine write_plates_pgm
+
 
 end module fmap_dat
 

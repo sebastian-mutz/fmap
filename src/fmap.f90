@@ -20,6 +20,7 @@ module fmap
   public :: fmap_generate_world, fmap_generate_plates
   public :: fmap_generate_voronoi_plates
   public :: fmap_write_plates, fmap_read_plates, fmap_write_plates_pgm
+  public :: fmap_generate_plate_movement
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
@@ -61,6 +62,13 @@ end interface
 interface fmap_write_plates_pgm
   !! writes voronoi cells into file
   module procedure write_plates_pgm
+end interface
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+interface fmap_generate_plate_movement
+  !! generate and balance plate movement
+  module procedure generate_plate_movement
 end interface
 
 end module fmap
