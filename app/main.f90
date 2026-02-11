@@ -15,11 +15,11 @@ program voronoi_main
   !call fmap_read_plates("plates.asc", world%plates)
 
   ! regenerate cells with different settings (overwrite original cells)
-  call fmap_generate_voronoi_plates(world, "manhattan", "torus")
-  !call fmap_generate_voronoi_plates(world, "euclidean", "sphere")
+  call fmap_generate_plate_mask(world, "manhattan", "torus")
+  !call fmap_generate_plate_mask(world, "euclidean", "sphere")
 
   ! write into pgm file
-  call fmap_write_plates_pgm('voronoi.pgm', world)
+  call fmap_write_plates_pgm('plates.pgm', world)
 
 end program voronoi_main
 

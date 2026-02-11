@@ -10,48 +10,51 @@ module fmap_mth
   private
 
   ! declare public procedures
-  public :: generate_voronoi_plates
+  public :: s_mth_compute_voronoi_cells
 
 contains
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_voronoi_plates(world, dist, form)
+subroutine s_mth_compute_voronoi_cells(grid, sites, weights, dist, form)
 
 ! ==== Description
 !! Computes voronoi cells based on passed options
 !! (incl. distance measures and world form/shape)
 
 ! ==== Declarations
-  type(typ_world), intent(inout) :: world             !! world
-  character(*)   , intent(in)    :: dist, form        !! distance measure and world shape
-  integer(i4)                    :: i, j, k           !! loops variables
-  integer(i4)                    :: nearest           !! nearest point
-  real(wp)                       :: d, dmin           !! distance and minimum distance
-  real(wp)                       :: dx, dy            !! x and y differences
-  real(wp)                       :: posx, posy        !! current x & y grid cell/pixel
-  real(wp)                       :: lon_g, lat_g      !! grid point lon (λ) and lat (φ) in radians
-  real(wp)                       :: lon_p, lat_p      !! plate loc lon (λ) and lat (φ) in radians
-  real(wp)                       :: dlon              !! min different in lon (λ)
-  real(wp), allocatable          :: weights_inv(:)    !! inverse weights
-  real(wp)                       :: nx_inv, ny_inv    !! inverse nx and ny
-  real(wp), parameter            :: pi = acos(-1.0_wp)!! pi
+  integer(i4) , intent(out) :: grid(:,:)          !! grid
+  real(wp)    , intent(in)  :: sites(:,:)         !! voronoi cell x and y coordinates
+  real(wp)    , intent(in)  :: weights(:)         !! voronoi cell weights
+  character(*), intent(in)  :: dist, form         !! distance measure and world shape
+  integer(i4)               :: nc, nx, ny         !! no. of voronoi cells, x & y grid cells
+  integer(i4)               :: i, j, k            !! loops variables
+  integer(i4)               :: nearest            !! nearest point
+  real(wp)                  :: d, dmin            !! distance and minimum distance
+  real(wp)                  :: dx, dy             !! x and y differences
+  real(wp)                  :: posx, posy         !! current x & y grid cell/pixel
+  real(wp)                  :: lon_g, lat_g       !! grid point lon (λ) and lat (φ) in radians
+  real(wp)                  :: lon_p, lat_p       !! plate loc lon (λ) and lat (φ) in radians
+  real(wp)                  :: dlon               !! min different in lon (λ)
+  real(wp), allocatable     :: weights_inv(:)     !! inverse weights
+  real(wp)                  :: nx_inv, ny_inv     !! inverse nx and ny
+  real(wp), parameter       :: pi = acos(-1.0_wp) !! pi
 
-  ! ==== Instructions
+! ==== Instructions
 
-  ! ---- checks
+! ---- checks
 
   ! form
-  if (form .eq. "flat" &
-      & .and. form .eq. "cylinder" &
-      & .and. form .eq. "torus" &
-      & .and. form .eq. "sphere") then
+  if (form .ne. "flat"     .and. &
+      form .ne. "cylinder" .and. &
+      form .ne. "torus"    .and. &
+      form .ne. "sphere") then
      error stop "invalid form"
   endif
 
   ! distance
-  if (dist .eq. "euclidean" .and. form .eq. "manhattan") then
+  if (dist .ne. "euclidean" .and. dist .ne. "manhattan") then
      error stop "invalid distance"
   endif
 
@@ -60,21 +63,24 @@ subroutine generate_voronoi_plates(world, dist, form)
      error stop "sphere requires euclidean distance"
   endif
 
-  ! ---- precompute constants
-  allocate(weights_inv(size(world%plates%w)))
-  weights_inv = 1.0_wp / world%plates%w
-  nx_inv = 1.0_wp / real(world%nx, wp)
-  ny_inv = 1.0_wp / real(max(1_i4, world%ny-1), wp)
+  ! ---- allocate and precompute constants
+  nc = size(sites, dim=1)
+  nx = size(grid,  dim=1)
+  ny = size(grid,  dim=2)
+  allocate(weights_inv(nc))
+  weights_inv = 1.0_wp / weights
+  nx_inv = 1.0_wp / real(nx, wp)
+  ny_inv = 1.0_wp / real(max(1_i4, ny-1), wp)
 
   ! ---- compute voronoi cells
-  do j = 1, world%ny
+  do j = 1, ny
      ! get y/lat position of current grid cell
      posy = real(j, wp)
      if (form .eq. "sphere") then
         lat_g = pi * (posy - 1.0_wp) * ny_inv - 0.5_wp * pi
      end if
 
-     do i = 1, world%nx
+     do i = 1, nx
         posx = real(i, wp)
         if (form .eq. "sphere") then
            lon_g = 2.0_wp * pi * (posx - 1.0_wp) * nx_inv
@@ -85,33 +91,33 @@ subroutine generate_voronoi_plates(world, dist, form)
         nearest = 1
 
         ! loop through plate centres
-        do k = 1, world%np
+        do k = 1, nc
 
            select case (form)
 
            ! flat; does not need to tile seamlessly
            case ("flat")
-              dx = abs(posx - world%plates(k)%loc(1))
-              dy = abs(posy - world%plates(k)%loc(2))
+              dx = abs(posx - sites(k,1))
+              dy = abs(posy - sites(k,2))
 
            ! cylinder; tiles seamlessly along x axis
            case ("cylinder")
-              dx = abs(posx - world%plates(k)%loc(1))
-              dy = abs(posy - world%plates(k)%loc(2))
-              dx = min(dx, real(world%nx, wp) - dx)
+              dx = abs(posx - sites(k,1))
+              dy = abs(posy - sites(k,2))
+              dx = min(dx, real(nx, wp) - dx)
 
            ! torus; tiles seamlessly along x and y axis
            case ("torus")
-              dx = abs(posx - world%plates(k)%loc(1))
-              dy = abs(posy - world%plates(k)%loc(2))
-              dx = min(dx, real(world%nx, wp) - dx)
-              dy = min(dy, real(world%ny, wp) - dy)
+              dx = abs(posx - sites(k,1))
+              dy = abs(posy - sites(k,2))
+              dx = min(dx, real(nx, wp) - dx)
+              dy = min(dy, real(ny, wp) - dy)
 
            ! spherical
            case ("sphere")
               ! get plate loc in radians
-              lon_p = 2.0_wp * pi * (world%plates(k)%loc(1)-1.0_wp) * nx_inv
-              lat_p = pi * (world%plates(k)%loc(2) - 1.0_wp) * ny_inv - 0.5_wp * pi
+              lon_p = 2.0_wp * pi * (sites(k,1)-1.0_wp) * nx_inv
+              lat_p = pi * (sites(k,2) - 1.0_wp) * ny_inv - 0.5_wp * pi
               ! get min long difference
               dlon  = abs(lon_g - lon_p)
               dlon  = min(dlon, 2.0_wp * pi - dlon)
@@ -145,14 +151,14 @@ subroutine generate_voronoi_plates(world, dist, form)
         enddo
 
         ! update grid
-        world%plate_mask(i,j) = nearest
+        grid(i,j) = nearest
      enddo
   enddo
 
   ! deallocate
   deallocate(weights_inv)
 
-end subroutine generate_voronoi_plates
+end subroutine s_mth_compute_voronoi_cells
 
 
 end module fmap_mth

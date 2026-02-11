@@ -6,13 +6,14 @@ module fmap_geo
   use :: fmap_ini
   use :: fmap_dat
   use :: fmap_mth
+  use :: fmap_rng
 
   ! basic options
   implicit none
   private
 
   ! declare public procedures
-  public :: generate_world, generate_plates, generate_plate_movement
+  public :: generate_world, generate_plates, generate_plate_movement, generate_plate_mask
 
 contains
 
@@ -29,7 +30,7 @@ subroutine generate_world(world, seed, nx, ny, np, sea, spin, form)
 
 ! ==== Declarations
   type(typ_world), intent(out)          :: world !! generated world
-  integer(i4)    , intent(in), optional :: seed  !! world seed
+  integer(i4)    , intent(in), optional :: seed  !! rng seed
   integer(i4)    , intent(in), optional :: nx    !! width / no. of longitude grid cells
   integer(i4)    , intent(in), optional :: ny    !! heigt / no. of latitude grid cells
   integer(i4)    , intent(in), optional :: np    !! number of tectonic plates
@@ -39,6 +40,8 @@ subroutine generate_world(world, seed, nx, ny, np, sea, spin, form)
 
 
 ! ==== Instructions
+
+! ---- handle defaults and inputs
 
   ! default world
   world%seed = 593742185
@@ -58,48 +61,63 @@ subroutine generate_world(world, seed, nx, ny, np, sea, spin, form)
   if (present(spin)) world%spin = spin
   if (present(form)) world%form = form
 
-  ! allocate all
-  allocate(world%plates(world%np))
-  allocate(world%plate_mask(world%nx, world%nx))
+! ---- initialise
+  ! set random seed
+  ! This seed will be used/advanced as the world is build successively.
+  ! Each generated world layer (e.g., plates seeding) accepts an alternative
+  ! seed, giving the users the option to keep previous layers and vary new
+  ! ones as they continue to build the world.
+  call s_rng_set_seed(world%seed)
 
-  ! generate plates
+  ! allocate all arrays
+  allocate(world%plates(world%np))               ! plate numbers
+  allocate(world%plate_mask(world%nx, world%ny)) ! plate mask grid
+  allocate(world%topography(world%nx, world%ny)) ! topography grid
+
+! ---- generate world
+
+  ! generate plates (sites and properties)
   call generate_plates(world)
 
   ! generate plate mask by computing voronoi cells around plate sites
-  call generate_voronoi_plates(world, "euclidean", world%form)
+  call generate_plate_mask(world, dist="euclidean", form=world%form)
 
   ! generate and balance plate movement
-  call generate_plate_movement(world, world%form)
+  call generate_plate_movement(world, form=world%form)
+
+  ! generate topography
+  world%topography = 0.0_wp
 
 end subroutine generate_world
 
 
+
+
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_plates(world, iseed, form)
+subroutine generate_plates(world, seed, form)
 
 ! ==== Description
 !! Generate geographical sites (coordinates) on specified domain.
 
 ! ==== Declarations
   type(typ_world), intent(inout)         :: world   !! world
-  integer(i4)    , intent(in) , optional :: iseed   !! single seed
+  integer(i4)    , intent(in) , optional :: seed    !! rng seed
   character(*)   , intent(in) , optional :: form    !! world form; determines plate seed p
-  integer(i4)    , allocatable           :: seed(:) !! seed array
-  integer(i4)                            :: w_iseed !! working seed integer
   character(64)                          :: w_form  !! working form
   integer(i4)                            :: i       !! flexible integer
   real(wp)                               :: a, b
 
 ! ==== Instructions
 
-  ! use world seed if not passed
-  w_iseed = world%seed
-  if (present(iseed)) w_iseed = iseed
+! ---- handle input
 
   ! use world form if not passed
   w_form = world%form
   if (present(form)) w_form = trim(form)
+
+  ! set new seed if passed
+  if (present(seed)) call s_rng_set_seed(seed)
 
 ! ---- plate initialisation
 
@@ -113,14 +131,6 @@ subroutine generate_plates(world, iseed, form)
   enddo
 
 ! ---- generate plate locations
-
-  ! generate seed from single integer seed
-  call random_seed(size = i)
-  allocate(seed(i))
-  seed = w_iseed
-
-  ! set seed
-  call random_seed(put = seed)
 
   ! generate random sites within map bounds
   do i = 1, world%np
@@ -163,9 +173,11 @@ subroutine generate_plates(world, iseed, form)
 end subroutine generate_plates
 
 
+
+
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_plate_movement(world, form)
+subroutine generate_plate_movement(world, seed, form)
 
 ! ==== Description
 !! Generates random plate velocities for either plane or sphere, with zero
@@ -174,6 +186,7 @@ subroutine generate_plate_movement(world, form)
 ! ==== Declarations
   type(typ_world), intent(inout)         :: world            !! world
   character(*)   , intent(in) , optional :: form             !! world form; determines plate seed p
+  integer(i4)    , intent(in) , optional :: seed             !! rng seed
   character(64)                          :: w_form           !! working form
   real(wp)                               :: mu_v(2)          !! mean of x/u & y/v velocities
   real(wp)                               :: cv(3)            !! cartesian velocity components (x,y,z)
@@ -186,9 +199,14 @@ subroutine generate_plate_movement(world, form)
 
 ! ==== Instructions
 
+! ---- handle input
+
   ! use world form if not passed
   w_form = world%form
   if (present(form)) w_form = trim(form)
+
+  ! set new seed if passed
+  if (present(seed)) call s_rng_set_seed(seed)
 
   !---- random initial velocities (u,v)
   do i = 1, world%np
@@ -282,6 +300,76 @@ subroutine generate_plate_movement(world, form)
   enddo
 
 end subroutine generate_plate_movement
+
+
+
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+subroutine generate_plate_mask(world, dist, form)
+
+! ==== Description
+!! Generates a plate mask based on voronoi cell generation around
+!! plate centres. World shape/form and distance measure for cell
+!! computation can be passed as options.
+
+! ==== Declarations
+  type(typ_world),intent(inout)        :: world                  !! world
+  character(*)   ,intent(in), optional :: dist, form             !! distance measure and world shape
+  real(wp)       , allocatable         :: sites(:,:), weights(:) !! plate sites and weights
+  character(64)                        :: w_dist, w_form         !! final value of dist and form
+
+! ==== Instructions
+
+! ---- handle input
+
+  ! override default distance if passed
+  w_dist = "euclidean"
+  if (present(dist)) w_dist = dist
+
+  ! override default (world) form if passed
+  w_form = world%form
+  if (present(form)) w_form = form
+
+  ! pass plate sites (locations)
+  allocate( sites(size(world%plates),2) )
+  allocate( weights(size(world%plates)) )
+  sites(:,1) = world%plates(:)%loc(1)
+  sites(:,2) = world%plates(:)%loc(2)
+  weights = world%plates%w
+
+! ---- generate voronoi cell plates
+  call s_mth_compute_voronoi_cells(world%plate_mask, sites, &
+                                 & weights, w_dist, w_form)
+
+end subroutine generate_plate_mask
+
+
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+subroutine generate_topography(world, seed)
+
+! ==== Description
+!! Generates topography based on plate boundaries and movement, and random
+!! noise.
+
+! ==== Declarations
+  type(typ_world), intent(inout)         :: world   !! world
+  integer(i4)    , intent(in) , optional :: seed    !! rng seed
+  integer(i4)                            :: i       !! flexible integer
+
+! ==== Instructions
+
+! ---- handle input
+
+  ! set new seed if passed
+  if (present(seed)) call s_rng_set_seed(seed)
+
+
+
+end subroutine generate_topography
+
 
 
 end module fmap_geo

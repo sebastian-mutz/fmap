@@ -29,6 +29,9 @@ type :: typ_world
   integer(i4)    , allocatable :: plate_mask(:,:) !! geog. grid containing plate numbers
   type(typ_plate), allocatable :: plates(:)       !! sectors / tectonic plates
 
+  ! topography
+  real(wp)       , allocatable :: topography(:,:) !! geog. grid for topographic heigt
+
 end type typ_world
 
 

@@ -18,7 +18,7 @@ module fmap
 
   ! public procedures
   public :: fmap_generate_world, fmap_generate_plates
-  public :: fmap_generate_voronoi_plates
+  public :: fmap_generate_plate_mask
   public :: fmap_write_plates, fmap_read_plates, fmap_write_plates_pgm
   public :: fmap_generate_plate_movement
 
@@ -52,9 +52,9 @@ end interface
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-interface fmap_generate_voronoi_plates
-  !! computes voronoi cells
-  module procedure generate_voronoi_plates
+interface fmap_generate_plate_mask
+  !! generates plate mask by computing voronoi cells
+  module procedure generate_plate_mask
 end interface
 
 ! ==================================================================== !
