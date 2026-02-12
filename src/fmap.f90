@@ -17,58 +17,74 @@ module fmap
   public :: wp, i8, i4
 
   ! public procedures
-  public :: fmap_generate_world, fmap_generate_plates
+  public :: fmap_generate_world
+  public :: fmap_generate_plates
   public :: fmap_generate_plate_mask
-  public :: fmap_write_plates, fmap_read_plates, fmap_write_plates_pgm
   public :: fmap_generate_plate_movement
+  public :: fmap_generate_topography
+  public :: fmap_write_plates, fmap_read_plates
+  public :: fmap_write_plates_pgm, fmap_write_topography_pgm
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
+! ---- world generation
+
 interface fmap_generate_world
   !! generates a set of points (sites/centres of cells)
   module procedure generate_world
 end interface
 
-! ==================================================================== !
-! -------------------------------------------------------------------- !
+! ==== plates
+
 interface fmap_generate_plates
   !! generates a set of points (sites/centres of cells)
   module procedure generate_plates
 end interface
 
-! ==================================================================== !
-! -------------------------------------------------------------------- !
-interface fmap_write_plates
-  !! write plates
-  module procedure write_plates
-end interface
-
-! ==================================================================== !
-! -------------------------------------------------------------------- !
-interface fmap_read_plates
-  !! read plates
-  module procedure read_plates
-end interface
-
-! ==================================================================== !
-! -------------------------------------------------------------------- !
 interface fmap_generate_plate_mask
   !! generates plate mask by computing voronoi cells
   module procedure generate_plate_mask
 end interface
 
+interface fmap_generate_plate_movement
+  !! generate and balance plate movement
+  module procedure generate_plate_movement
+end interface
+
+! ==== topography
+
+interface fmap_generate_topography
+  !! generate topography
+  module procedure generate_topography
+end interface
+
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
+! ---- i/o
+
+! ==== plates
+
+interface fmap_write_plates
+  !! write plates
+  module procedure write_plates
+end interface
+
+interface fmap_read_plates
+  !! read plates
+  module procedure read_plates
+end interface
+
 interface fmap_write_plates_pgm
   !! writes voronoi cells into file
   module procedure write_plates_pgm
 end interface
 
-! ==================================================================== !
-! -------------------------------------------------------------------- !
-interface fmap_generate_plate_movement
-  !! generate and balance plate movement
-  module procedure generate_plate_movement
+! ==== topography
+
+interface fmap_write_topography_pgm
+  !! write topography in pgm file
+  module procedure write_topography_pgm
 end interface
+
 
 end module fmap

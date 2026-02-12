@@ -10,7 +10,8 @@ module fmap_dat
   private
 
   ! declare public procedures
-  public :: write_plates, read_plates, write_plates_pgm
+  public :: write_plates, read_plates
+  public :: write_plates_pgm, write_topography_pgm
 
 contains
 
@@ -94,7 +95,9 @@ subroutine write_plates_pgm(filename, world)
 
 ! ==== Instructions
 
-  ! ---- prepare colours for plates
+! ---- write plate masks
+
+  ! prepare colours for plates
   if (world%np .ge. 100) then
      error stop "max. plate number for plotting exceeded"
   endif
@@ -105,10 +108,10 @@ subroutine write_plates_pgm(filename, world)
      col(k) = col(k-1) + i           ! assign grey tones per plate
   enddo
 
-  ! ---- allocate temporary image buffer
+  ! allocate temporary image buffer
   allocate(image(world%nx, world%ny))
 
-  ! ---- fill image with base colours and plate boundaries
+  ! fill image with base colours and plate boundaries
   do j = 1, world%ny
      do i = 1, world%nx
         if (i .lt. world%nx .and. j .lt. world%ny) then
@@ -137,18 +140,18 @@ subroutine write_plates_pgm(filename, world)
      enddo
   enddo
 
-  ! ---- overlay velocity lines for each plate
+! ---- overlay velocity lines for each plate
 
   ! scale factor for velocity line lengths (fraction of world width)
   sfac = 0.05_wp * real(world%nx, wp)
 
   do k = 1, world%np
 
-     ! ---- compute line length in pixels proportional to velocity magnitude
+     ! compute line length in pixels proportional to velocity magnitude
      length = max(1, int(sqrt(world%plates(k)%v(1) * world%plates(k)%v(1) + &
             & world%plates(k)%v(2) * world%plates(k)%v(2)) * sfac + 0.5_wp))
 
-     ! ---- normalized direction steps
+     ! normalised direction steps
      if (world%plates(k)%v(1)*world%plates(k)%v(1) + world%plates(k)%v(2) * &
       & world%plates(k)%v(2) .gt. 0.0_wp) then
         dx = world%plates(k)%v(1) / sqrt(world%plates(k)%v(1) * &
@@ -162,7 +165,7 @@ subroutine write_plates_pgm(filename, world)
         dy = 0.0_wp
      endif
 
-     ! ---- draw line from center along velocity direction
+     ! draw line from center along velocity direction
      do s = 1, length
         xi = world%plates(k)%loc(1) + int(dx * s + 0.5_wp)
         yi = world%plates(k)%loc(2) + int(dy * s + 0.5_wp)
@@ -172,17 +175,22 @@ subroutine write_plates_pgm(filename, world)
         endif
      enddo
 
-     ! ---- center pixel black
+     ! center pixel black
      image(world%plates(k)%loc(1), world%plates(k)%loc(2)) = 255
 
   enddo
 
-  ! ---- write PGM file
+! ---- write PGM file
+
+  ! open
   open(unit=std_rw, file=filename, status='replace', action='write')
+
+  ! PGM header
   write(std_rw,'(A)') 'P2'
   write(std_rw,'(I0,1X,I0)') world%nx, world%ny
   write(std_rw,'(I0)') 255
 
+  ! image data
   do j = 1, world%ny
      do i = 1, world%nx
         write(std_rw,'(I0,1X)', advance='no') image(i,j)
@@ -190,12 +198,74 @@ subroutine write_plates_pgm(filename, world)
      write(std_rw,*)
   enddo
 
+  ! close and deallocate
   close(std_rw)
   deallocate(image)
   deallocate(col)
 
 end subroutine write_plates_pgm
 
+
+
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+subroutine write_topography_pgm(filename, world)
+
+! ==== Description
+!! Writes topography to PGM.
+!! Topography is scaled to greys 50–255.
+!! Greys 0–50 remain unused.
+
+! ==== Declarations
+  character(len=*), intent(in) :: filename     !! filename
+  type(typ_world) , intent(in) :: world        !! world data
+  integer(i4)                  :: i, j         !! loop indeces
+  integer(i4)                  :: pixel_col    !! pixel colour
+  real(wp)                     :: z_min, z_max !! min & max topo
+  real(wp)                     :: sfac         !! scale factor
+
+! ==== Instructions
+
+  ! determine min and max topography
+  z_min = minval(world%topography)
+  z_max = maxval(world%topography)
+
+  ! avoid divide by zero
+  if (z_max .gt. z_min) then
+     sfac = 205.0_wp / (z_max - z_min)
+  else
+     sfac = 0.0_wp
+  endif
+
+  ! open file
+  open(unit=std_rw, file=filename, status='replace', action='write')
+
+  ! PGM header
+  write(std_rw,'(A)') 'P2'
+  write(std_rw,'(I0,1X,I0)') world%nx, world%ny
+  write(std_rw,'(I0)') 255
+
+  ! image data
+  do j = 1, world%ny
+     do i = 1, world%nx
+
+        if (z_max .gt. z_min) then
+           pixel_col = int( 50.0_wp + &
+                        & (world%topography(i,j) - z_min) * sfac )
+        else
+           pixel_col = 50
+        endif
+
+        write(std_rw,'(I0,1X)', advance='no') pixel_col
+     enddo
+     write(std_rw,*)
+  enddo
+
+  ! close
+  close(std_rw)
+
+end subroutine write_topography_pgm
 
 end module fmap_dat
 

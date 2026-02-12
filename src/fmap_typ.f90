@@ -41,7 +41,7 @@ type :: typ_plate
 
   ! tectonic plate
   integer(i4) :: id     !! plate ID
-  real(wp)    :: loc(2) !! position; x-y coordinates
+  real(wp)    :: loc(2) !! position; x and y coordinates on grid (not lon/lat)
   real(wp)    :: d      !! density abstraction; 0.0 = continental, 1.0 = oceanic
   real(wp)    :: w      !! (mathematical) weight determines plate size; 1.0 = default
   real(wp)    :: v(2)   !! velocity components (x/meridional, y/zonal)

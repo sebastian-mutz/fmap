@@ -18,8 +18,12 @@ program voronoi_main
   call fmap_generate_plate_mask(world, "manhattan", "torus")
   !call fmap_generate_plate_mask(world, "euclidean", "sphere")
 
+  ! regenerate topography
+  call fmap_generate_topography(world)
+
   ! write into pgm file
   call fmap_write_plates_pgm('plates.pgm', world)
+  call fmap_write_topography_pgm('topo.pgm', world)
 
 end program voronoi_main
 

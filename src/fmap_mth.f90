@@ -1,9 +1,10 @@
 module fmap_mth
-!! Maths module; distance measures and voronoi cells
+!! Maths module
 
   ! load modules
   use :: fmap_typ
   use :: fmap_ini
+  use :: fmap_con
 
   ! basic options
   implicit none
@@ -39,7 +40,6 @@ subroutine s_mth_compute_voronoi_cells(grid, sites, weights, dist, form)
   real(wp)                  :: dlon               !! min different in lon (λ)
   real(wp), allocatable     :: weights_inv(:)     !! inverse weights
   real(wp)                  :: nx_inv, ny_inv     !! inverse nx and ny
-  real(wp), parameter       :: pi = acos(-1.0_wp) !! pi
 
 ! ==== Instructions
 
@@ -70,20 +70,20 @@ subroutine s_mth_compute_voronoi_cells(grid, sites, weights, dist, form)
   allocate(weights_inv(nc))
   weights_inv = 1.0_wp / weights
   nx_inv = 1.0_wp / real(nx, wp)
-  ny_inv = 1.0_wp / real(max(1_i4, ny-1), wp)
+  ny_inv = 1.0_wp / real(max(1_i4, ny), wp)
 
   ! ---- compute voronoi cells
   do j = 1, ny
      ! get y/lat position of current grid cell
      posy = real(j, wp)
      if (form .eq. "sphere") then
-        lat_g = pi * (posy - 1.0_wp) * ny_inv - 0.5_wp * pi
+        lat_g = c_pi * (posy - 1.0_wp) * ny_inv - 0.5_wp * c_pi
      end if
 
      do i = 1, nx
         posx = real(i, wp)
         if (form .eq. "sphere") then
-           lon_g = 2.0_wp * pi * (posx - 1.0_wp) * nx_inv
+           lon_g = 2.0_wp * c_pi * (posx - 1.0_wp) * nx_inv
         end if
 
         ! reset
@@ -116,11 +116,11 @@ subroutine s_mth_compute_voronoi_cells(grid, sites, weights, dist, form)
            ! spherical
            case ("sphere")
               ! get plate loc in radians
-              lon_p = 2.0_wp * pi * (sites(k,1)-1.0_wp) * nx_inv
-              lat_p = pi * (sites(k,2) - 1.0_wp) * ny_inv - 0.5_wp * pi
+              lon_p = 2.0_wp * c_pi * (sites(k,1)-1.0_wp) * nx_inv
+              lat_p = c_pi * (sites(k,2) - 1.0_wp) * ny_inv - 0.5_wp * c_pi
               ! get min long difference
               dlon  = abs(lon_g - lon_p)
-              dlon  = min(dlon, 2.0_wp * pi - dlon)
+              dlon  = min(dlon, 2.0_wp * c_pi - dlon)
               ! get distance
               d     = acos(sin(lat_g)*sin(lat_p) + &
                     & cos(lat_g) * cos(lat_p) * cos(dlon))
