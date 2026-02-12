@@ -357,6 +357,7 @@ subroutine generate_topography(world, seed)
 !! then applies exponential falloff into the plate interiors.
 !! TODO: add topographic noise
 !! TODO: scale falloff with map width AND velocity!
+!! TODO: make decay_len dependent on map size (so it scales correctly)
 
 ! ==== Declarations
   type(typ_world), intent(inout)    :: world          !! world
@@ -383,7 +384,7 @@ subroutine generate_topography(world, seed)
   dist = huge(1.0_wp)
   topo = 0.0_wp
 
-! ---- Step 1: Non-radial topography at boundaries
+! ---- Generate topography at boundaries
   do j = 1, world%ny
      do i = 1, world%nx
         ip = world%plate_mask(i,j)
@@ -395,7 +396,7 @@ subroutine generate_topography(world, seed)
               if ((j+dj) .lt. 1 .or. (j+dj) .gt. world%ny) cycle
               iq = world%plate_mask(i+di,j+dj)
               if (iq .ne. ip) then
-                 ! Euclidean distance to boundary (neighbuor)
+                 ! Euclidean distance to boundary (neighbour)
                  dx = real(di,wp)
                  dy = real(dj,wp)
                  dtmp = sqrt(dx*dx + dy*dy)
