@@ -112,6 +112,8 @@ subroutine generate_plates(world, seed, form)
 
 ! ==== Instructions
 
+  print*, "> generate plates"
+
 ! ---- handle input
 
   ! use world form if not passed
@@ -200,6 +202,8 @@ subroutine generate_plate_movement(world, seed, form)
   integer                                :: i                !! loop integer
 
 ! ==== Instructions
+
+  print*, "> generate plate movement"
 
 ! ---- handle input
 
@@ -323,6 +327,8 @@ subroutine generate_plate_mask(world, dist, form)
 
 ! ==== Instructions
 
+  print*, "> generate plate mask"
+
 ! ---- handle input
 
   ! override default distance if passed
@@ -356,130 +362,129 @@ subroutine generate_topography(world, seed)
 !! Generates topography based on plate boundaries and relative motion,
 !! then applies exponential falloff into the plate interiors.
 !! TODO: add topographic noise
-!! TODO: scale falloff with map width AND velocity!
-!! TODO: make decay_len dependent on map size (so it scales correctly)
 
 ! ==== Declarations
-  type(typ_world), intent(inout)    :: world          !! world
-  integer(i4), intent(in), optional :: seed           !! rng seed
-  integer(i4)                       :: i, j, ip, iq   !! grid indices and plate IDs
-  integer(i4)                       :: di, dj         !! neighbour offsets
-  real(wp)                          :: vmag, weight   !! relative plate velocity and falloff weight
-  real(wp), allocatable             :: dist(:,:)      !! distance to nearest boundary
-  real(wp), allocatable             :: topo(:,:)      !! topography before falloff
-  real(wp), parameter               :: uplift_scale = 0.5_wp
-  real(wp), parameter               :: decay_len    = 10.0_wp
-  real(wp), parameter               :: ocean_damp   = 0.05_wp
-  real(wp)                          :: dx, dy, dtmp
+  type(typ_world), intent(inout)    :: world        !! world
+  integer(i4), intent(in), optional :: seed         !! rng seed
+  integer(i4)                       :: i, j, k, l   !! loop indeces
+  integer(i4)                       :: ip, iq       !! plate IDs
+  integer(i4)                       :: di, dj       !! neighbour offsets
+  real(wp), allocatable             :: v            !! relative plate velocity
+  real(wp), allocatable             :: d, dx, dy    !! distance to nearest boundary, and components
+  real(wp)                          :: uplift_scale !! single scale factor for topography
+  real(wp)                          :: decay_len, w !! topography decay length, weight term
+  real(wp)                          :: ocean_damp   !! bathymetry damping factor
 
 ! ==== Instructions
+
+  print*, "> generate topography"
 
 ! ---- RNG
   if (present(seed)) call s_rng_set_seed(seed)
 
-! ---- initialise arrays
-  world%topography = 0.0_wp
-  allocate(dist(world%nx, world%ny))
-  allocate(topo(world%nx, world%ny))
-  dist = huge(1.0_wp)
-  topo = 0.0_wp
+! ---- initialise arrays and set parameters
 
-! ---- Generate topography at boundaries
+  ! control parameters
+  uplift_scale = 0.5_wp
+  ocean_damp   = 0.05_wp
+  decay_len    = world%nx * 0.05_wp
+
+  ! set topography to 0.0 everywhere
+  world%topography = 0.0_wp
+
+
+! ---- generate topography at boundaries
+
+  ! set nearest distance to big number
+  d = huge(1.0_wp)
+
+  ! generate topo
   do j = 1, world%ny
      do i = 1, world%nx
         ip = world%plate_mask(i,j)
+
         ! check 8 neighbors
         do dj = -1, 1
            do di = -1, 1
               if (di .eq. 0 .and. dj .eq. 0) cycle
               if ((i+di) .lt. 1 .or. (i+di) .gt. world%nx) cycle
               if ((j+dj) .lt. 1 .or. (j+dj) .gt. world%ny) cycle
+
               iq = world%plate_mask(i+di,j+dj)
+
               if (iq .ne. ip) then
+
                  ! Euclidean distance to boundary (neighbour)
                  dx = real(di,wp)
                  dy = real(dj,wp)
-                 dtmp = sqrt(dx*dx + dy*dy)
-                 dist(i,j) = min(dist(i,j), dtmp)
+                 d = min(d, sqrt(dx*dx + dy*dy))
+
                  ! relative plate velocity magnitude
-                 vmag = sqrt( (world%plates(iq)%v(1)-world%plates(ip)%v(1))**2 + &
-                              (world%plates(iq)%v(2)-world%plates(ip)%v(2))**2 )
-                 topo(i,j) = max(topo(i,j), vmag)
+                 v = sqrt( &
+                   & (world%plates(iq)%v(1)-world%plates(ip)%v(1))**2 + &
+                   & (world%plates(iq)%v(2)-world%plates(ip)%v(2))**2 )
+
+                 ! generate velocity controlled topography
+                 world%topography(i,j) = max(world%topography(i,j), v)
+
               endif
            enddo
         enddo
-     enddo
-  enddo
-
-! ---- Propagate boundary topo inward with decay
-
-  do j = 1, world%ny
-     do i = 1, world%nx
-
-        if (topo(i,j) .gt. 0.0_wp) then
-           world%topography(i,j) = topo(i,j)
-        else
-           world%topography(i,j) = 0.0_wp
-        endif
 
      enddo
   enddo
 
+! ---- propagate boundary topo inward with decay
+
+  ! calculate weight term once
+  w = exp(-1.0_wp/decay_len)
 
   ! forward
   do j = 1, world%ny
      do i = 1, world%nx
-
         if (i .gt. 1) then
            world%topography(i,j) = max( world%topography(i,j), &
-                world%topography(i-1,j) * exp(-1.0_wp/decay_len) )
+                                 & world%topography(i-1,j) * w )
         endif
-
         if (j .gt. 1) then
            world%topography(i,j) = max( world%topography(i,j), &
-                world%topography(i,j-1) * exp(-1.0_wp/decay_len) )
+                                 & world%topography(i,j-1) * w )
         endif
-
      enddo
   enddo
-
 
   ! backward
   do j = world%ny, 1, -1
      do i = world%nx, 1, -1
-
         if (i .lt. world%nx) then
            world%topography(i,j) = max( world%topography(i,j), &
-                world%topography(i+1,j) * exp(-1.0_wp/decay_len) )
+                                 & world%topography(i+1,j) * w )
         endif
-
         if (j .lt. world%ny) then
            world%topography(i,j) = max( world%topography(i,j), &
-                world%topography(i,j+1) * exp(-1.0_wp/decay_len) )
+                                 & world%topography(i,j+1) * w )
         endif
 
      enddo
   enddo
 
-
-  ! scale and damp oceanic plates
+  ! scale topography and damp oceanic plates
   do j = 1, world%ny
      do i = 1, world%nx
 
+        ! get plate id
         ip = world%plate_mask(i,j)
 
-        world%topography(i,j) = uplift_scale * world%topography(i,j)
+        ! scale topography with uplift scale
+        world%topography(i,j) = world%topography(i,j) * uplift_scale
 
+        ! dampen bathymetry
         if (world%plates(ip)%d .eq. 1.0_wp) then
            world%topography(i,j) = world%topography(i,j) * ocean_damp
         endif
 
      enddo
   enddo
-
-! ---- deallocate
-  deallocate(dist)
-  deallocate(topo)
 
 end subroutine generate_topography
 

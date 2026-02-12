@@ -28,6 +28,8 @@ subroutine s_rng_set_seed(seed)
 
 ! ==== Instructions
 
+  print*, "> set seed"
+
   ! generate seed from single integer
   call random_seed(size = i)
   allocate(seed_array(i))

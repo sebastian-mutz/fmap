@@ -5,6 +5,7 @@ module fmap_mth
   use :: fmap_typ
   use :: fmap_ini
   use :: fmap_con
+  use :: fmap_dat
 
   ! basic options
   implicit none
@@ -43,6 +44,8 @@ subroutine s_mth_compute_voronoi_cells(grid, sites, weights, dist, form)
 
 ! ==== Instructions
 
+  print*, "> compute voronoi cells"
+
 ! ---- checks
 
   ! form
@@ -74,6 +77,10 @@ subroutine s_mth_compute_voronoi_cells(grid, sites, weights, dist, form)
 
   ! ---- compute voronoi cells
   do j = 1, ny
+
+     ! progress bar
+     call s_dat_display_progress(j, ny)
+
      ! get y/lat position of current grid cell
      posy = real(j, wp)
      if (form .eq. "sphere") then
@@ -159,6 +166,5 @@ subroutine s_mth_compute_voronoi_cells(grid, sites, weights, dist, form)
   deallocate(weights_inv)
 
 end subroutine s_mth_compute_voronoi_cells
-
 
 end module fmap_mth

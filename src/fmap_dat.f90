@@ -12,6 +12,7 @@ module fmap_dat
   ! declare public procedures
   public :: write_plates, read_plates
   public :: write_plates_pgm, write_topography_pgm
+  public :: s_dat_display_progress
 
 contains
 
@@ -22,6 +23,8 @@ subroutine write_plates(outfile, p)
   character(len=*), intent(in) :: outfile
   type(typ_plate) , intent(in) :: p(:)
   integer(i4)                  :: i
+
+  print*, "> write plates"
 
   ! write all plate data in rows
   open(unit=std_rw, file=outfile, status='replace', action='write')
@@ -40,6 +43,8 @@ subroutine read_plates(infile, p)
   character(len=*), intent(in)               :: infile
   type(typ_plate) , intent(out), allocatable :: p(:)
   integer                                    :: i, n
+
+  print*, "> read plates"
 
   ! open file
   open(unit=std_rw, file=infile, action='read')
@@ -94,6 +99,8 @@ subroutine write_plates_pgm(filename, world)
   integer(i4)                   :: s            !! line step counter
 
 ! ==== Instructions
+
+  print*, "> write plate mask to pgm"
 
 ! ---- write plate masks
 
@@ -227,6 +234,8 @@ subroutine write_topography_pgm(filename, world)
 
 ! ==== Instructions
 
+  print*, "> write topography to pgm"
+
   ! determine min and max topography
   z_min = minval(world%topography)
   z_max = maxval(world%topography)
@@ -266,6 +275,39 @@ subroutine write_topography_pgm(filename, world)
   close(std_rw)
 
 end subroutine write_topography_pgm
+
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+subroutine s_dat_display_progress(i, n)
+! ==== Description
+!! Draws progress bar of width 50 characters.
+
+! ==== Declarations
+  integer(i4), intent(in) :: i      !! current iteration
+  integer(i4), intent(in) :: n      !! total iterations
+  integer(i4), parameter  :: w = 50 !! width of bar
+  integer(i4)             :: pos    !! current position in bar
+  real(wp)                :: frac   !! fraction complete
+
+! ==== Instructions
+
+  ! fraction completed
+  frac = real(i) / real(n)
+  pos = int(frac * w)
+
+  ! carriage return character; to overwrite previous bar
+  write(std_o,'(A)', advance='no') char(13)
+
+  ! print progress bar
+  write(std_o,'(A)', advance='no') '   [' // repeat('=', pos) &
+                                        & // repeat(' ', w-pos) // ']'
+
+  ! if last iteration, write new line
+  if (i .eq. n) write(std_o,'(A)') " "
+
+end subroutine s_dat_display_progress
+
 
 end module fmap_dat
 

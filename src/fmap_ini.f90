@@ -4,6 +4,7 @@ module fmap_ini
   ! load modules
   use :: iso_fortran_env, only: int32, int64, real32, real64, &
                               & input_unit, output_unit, error_unit
+
   ! load module for handling NaNs
   use, intrinsic :: ieee_arithmetic
 
