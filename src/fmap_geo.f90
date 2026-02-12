@@ -362,6 +362,9 @@ subroutine generate_topography(world, seed)
 !! Generates topography based on plate boundaries and relative motion,
 !! then applies exponential falloff into the plate interiors.
 !! TODO: add topographic noise
+!! TODO: scale, decay and damping factors as optional args
+!! TODO: use distance to boundary
+!! NOTE: currently generated topo does not tile seamlessly. pass option
 
 ! ==== Declarations
   type(typ_world), intent(inout)    :: world        !! world
@@ -370,10 +373,12 @@ subroutine generate_topography(world, seed)
   integer(i4)                       :: ip, iq       !! plate IDs
   integer(i4)                       :: di, dj       !! neighbour offsets
   real(wp), allocatable             :: v            !! relative plate velocity
-  real(wp), allocatable             :: d, dx, dy    !! distance to nearest boundary, and components
+  real(wp)                          :: d, dx, dy    !! distance to nearest boundary, and components
+  real(wp)                          :: noise        !! topo noise (random number)
   real(wp)                          :: uplift_scale !! single scale factor for topography
   real(wp)                          :: decay_len, w !! topography decay length, weight term
   real(wp)                          :: ocean_damp   !! bathymetry damping factor
+  real(wp)                          :: noise_damp   !! topographic noise damping factor
 
 ! ==== Instructions
 
@@ -386,17 +391,17 @@ subroutine generate_topography(world, seed)
 
   ! control parameters
   uplift_scale = 0.5_wp
-  ocean_damp   = 0.05_wp
+  ocean_damp   = 0.1_wp
+  noise_damp   = 0.2_wp
   decay_len    = world%nx * 0.05_wp
 
   ! set topography to 0.0 everywhere
   world%topography = 0.0_wp
 
-
 ! ---- generate topography at boundaries
 
   ! set nearest distance to big number
-  d = huge(1.0_wp)
+  !d = huge(1.0_wp)
 
   ! generate topo
   do j = 1, world%ny
@@ -414,10 +419,10 @@ subroutine generate_topography(world, seed)
 
               if (iq .ne. ip) then
 
-                 ! Euclidean distance to boundary (neighbour)
-                 dx = real(di,wp)
-                 dy = real(dj,wp)
-                 d = min(d, sqrt(dx*dx + dy*dy))
+!                  ! Euclidean distance to boundary (neighbour)
+!                  dx = real(di,wp)
+!                  dy = real(dj,wp)
+!                  d = min(d, sqrt(dx*dx + dy*dy))
 
                  ! relative plate velocity magnitude
                  v = sqrt( &
@@ -477,6 +482,10 @@ subroutine generate_topography(world, seed)
 
         ! scale topography with uplift scale
         world%topography(i,j) = world%topography(i,j) * uplift_scale
+
+        ! generate and add dampened noise
+        call random_number(noise)
+        world%topography(i,j) = world%topography(i,j) + noise * noise_damp
 
         ! dampen bathymetry
         if (world%plates(ip)%d .eq. 1.0_wp) then
