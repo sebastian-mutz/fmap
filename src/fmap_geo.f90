@@ -363,7 +363,7 @@ subroutine generate_topography(world, seed)
 !! then applies exponential falloff into the plate interiors.
 !! TODO: add topographic noise
 !! TODO: scale, decay and damping factors as optional args
-!! TODO: use distance to boundary
+!! TODO: use distance to boundary to grow topo instead? move away from coast
 !! NOTE: currently generated topo does not tile seamlessly. pass option
 
 ! ==== Declarations
@@ -400,9 +400,6 @@ subroutine generate_topography(world, seed)
 
 ! ---- generate topography at boundaries
 
-  ! set nearest distance to big number
-  !d = huge(1.0_wp)
-
   ! generate topo
   do j = 1, world%ny
      do i = 1, world%nx
@@ -418,11 +415,6 @@ subroutine generate_topography(world, seed)
               iq = world%plate_mask(i+di,j+dj)
 
               if (iq .ne. ip) then
-
-!                  ! Euclidean distance to boundary (neighbour)
-!                  dx = real(di,wp)
-!                  dy = real(dj,wp)
-!                  d = min(d, sqrt(dx*dx + dy*dy))
 
                  ! relative plate velocity magnitude
                  v = sqrt( &
