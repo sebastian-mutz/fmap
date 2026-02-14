@@ -13,16 +13,17 @@ module fmap_geo
   private
 
   ! declare public procedures
-  public :: generate_world
-  public :: generate_plates, generate_plate_movement, generate_plate_mask
-  public :: generate_topography
+  public :: s_geo_generate_world
+  public :: s_geo_generate_plates, s_geo_generate_plate_grids
+  public :: s_geo_generate_plate_movement
+  public :: s_geo_generate_topography
 
 contains
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_world(world, seed, nx, ny, np, sea, spin, form)
+subroutine s_geo_generate_world(world, seed, nx, ny, np, sea, spin, form)
 
 ! ==== Description
 !! Generate world from user args or defaults if not passed. All arrays
@@ -72,32 +73,47 @@ subroutine generate_world(world, seed, nx, ny, np, sea, spin, form)
   call s_rng_set_seed(world%seed)
 
   ! allocate all arrays
-  allocate(world%plates(world%np))               ! plate numbers
-  allocate(world%plate_mask(world%nx, world%ny)) ! plate mask grid
-  allocate(world%topography(world%nx, world%ny)) ! topography grid
+  allocate(world%plates(world%np))                  ! plate numbers
+  allocate(world%grd_plate(    world%nx, world%ny)) ! plate mask grid
+  allocate(world%grd_landsea(  world%nx, world%ny)) ! plate mask grid
+  allocate(world%grd_plate_bnd(world%nx, world%ny)) ! plate mask grid
+  allocate(world%grd_ocean_bnd(world%nx, world%ny)) ! plate mask grid
+  allocate(world%grd_topo(     world%nx, world%ny)) ! topography grid
 
 ! ---- generate world
 
   ! generate plates (sites and properties)
-  call generate_plates(world)
+  call s_geo_generate_plates(world)
 
   ! generate plate mask by computing voronoi cells around plate sites
-  call generate_plate_mask(world, dist="euclidean", form=world%form)
+  call s_geo_generate_plate_grids(world, dist="euclidean", form=world%form)
 
   ! generate and balance plate movement
-  call generate_plate_movement(world, form=world%form)
+  call s_geo_generate_plate_movement(world, form=world%form)
+
+  ! generate land sea mask
+  !call generate_landsea_mask(world)
+
+  ! extract plate boundaries
+  !call extract_plate_bnd(world)
+
+  ! extract ocean boundaries (oceanic-cont. boundaties)
+  !call extract_ocean_bnd(world)
 
   ! generate topography
-  call generate_topography(world)
+  call s_geo_generate_topography(world)
 
-end subroutine generate_world
+  ! erode coasts
+  ! TODO: cellular automator on landsea mask
+
+end subroutine s_geo_generate_world
 
 
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_plates(world, seed, form)
+subroutine s_geo_generate_plates(world, seed, form)
 
 ! ==== Description
 !! Generate geographical sites (coordinates) on specified domain.
@@ -174,14 +190,132 @@ subroutine generate_plates(world, seed, form)
      world%plates(i)%d = merge(1.0, 0.0, world%plates(i)%d .lt. world%sea)
   enddo
 
-end subroutine generate_plates
+end subroutine s_geo_generate_plates
 
 
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_plate_movement(world, seed, form)
+subroutine s_geo_generate_plate_grids(world, dist, form)
+
+! ==== Description
+!! Generates a plate mask based on voronoi cell generation around
+!! plate centres. World shape/form and distance measure for cell
+!! computation can be passed as options.
+
+! ==== Declarations
+  type(typ_world),intent(inout)        :: world                  !! world
+  character(*)   ,intent(in), optional :: dist, form             !! distance measure and world shape
+  real(wp)       , allocatable         :: sites(:,:), weights(:) !! plate sites and weights
+  character(64)                        :: w_dist, w_form         !! final value of dist and form
+  integer(i4)                          :: i, j, di, dj           !! loop indeces
+  integer(i4)                          :: pid1, pid2             !! plate ids
+
+! ==== Instructions
+
+! ---- handle input
+
+  ! override default distance if passed
+  w_dist = "euclidean"
+  if (present(dist)) w_dist = dist
+
+  ! override default (world) form if passed
+  w_form = world%form
+  if (present(form)) w_form = form
+
+! ---- initialise all grids
+
+  world%grd_plate     = 0
+  world%grd_landsea   = 0
+  world%grd_plate_bnd = 0
+  world%grd_ocean_bnd = 0
+
+! ---- generate voronoi cell plates (and generate plate mask/grid)
+
+  print*, "> generate plate mask"
+
+  ! pass plate sites (locations) and weights
+  allocate( sites(size(world%plates),2) )
+  allocate( weights(size(world%plates)) )
+  sites(:,1) = world%plates(:)%loc(1)
+  sites(:,2) = world%plates(:)%loc(2)
+  weights = world%plates%w
+
+  ! compute voronoi cells around plate locations
+  call s_mth_compute_voronoi_cells(world%grd_plate, sites, &
+                                 & weights, w_dist, w_form)
+
+
+! ---- generate land-sea mask
+
+  print*, "> generate land-sea mask"
+
+  do j = 1, world%ny
+     do i = 1, world%nx
+        ! where plate density low (0) assign "land" (1)
+        if (world%plates( world%grd_plate(i,j) )%d .eq. 0.0_wp ) then
+           world%grd_landsea(i,j) = 1
+        endif
+     enddo
+  enddo
+
+! ---- get plate boundaries
+
+  print*, "> extract plate and continent boundaries"
+
+  do j = 1, world%ny
+
+     ! progress bar
+     call s_dat_display_progress(j, world%ny)
+
+     do i = 1, world%nx
+
+        ! get plate ID
+        pid1 = world%grd_plate(i,j)
+
+        ! right neighbour
+        if (i .lt. world%nx) then
+           ! get plate ID of cell neighbour
+           pid2 = world%grd_plate(i+1,j)
+           ! if plate IDs are different
+           if (pid1 .ne. pid2) then
+              ! remember plate boundary (set to 1)
+              world%grd_plate_bnd(i,j) = 1
+              ! if plate densities are different
+              if (world%plates(pid1)%d .ne. world%plates(pid2)%d) then
+                 ! remember as ocean-continent boundary
+                 world%grd_ocean_bnd(i,j) = 1
+              endif
+           endif
+        endif
+
+        ! down neighbour
+        if (j .lt. world%ny) then
+           ! get plate ID of cell neighbour
+           pid2 = world%grd_plate(i,j+1)
+           ! if plate IDs are different
+           if (pid1 .ne. pid2) then
+              ! remember plate boundary (set to 1)
+              world%grd_plate_bnd(i,j) = 1
+              if (world%plates(pid1)%d .ne. world%plates(pid2)%d) then
+                 ! remember as ocean-continent boundary
+                 world%grd_ocean_bnd(i,j) = 1
+              endif
+           endif
+        endif
+
+     enddo
+  enddo
+
+end subroutine s_geo_generate_plate_grids
+
+
+
+
+! ==================================================================== !
+! -------------------------------------------------------------------- !
+subroutine s_geo_generate_plate_movement(world, seed, form)
 
 ! ==== Description
 !! Generates random plate velocities for either plane or sphere, with zero
@@ -305,80 +439,34 @@ subroutine generate_plate_movement(world, seed, form)
                           &  cv(2) * sin_lat * sin_lon + cv(3) * cos_lat
   enddo
 
-end subroutine generate_plate_movement
+end subroutine s_geo_generate_plate_movement
 
 
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine generate_plate_mask(world, dist, form)
-
-! ==== Description
-!! Generates a plate mask based on voronoi cell generation around
-!! plate centres. World shape/form and distance measure for cell
-!! computation can be passed as options.
-
-! ==== Declarations
-  type(typ_world),intent(inout)        :: world                  !! world
-  character(*)   ,intent(in), optional :: dist, form             !! distance measure and world shape
-  real(wp)       , allocatable         :: sites(:,:), weights(:) !! plate sites and weights
-  character(64)                        :: w_dist, w_form         !! final value of dist and form
-
-! ==== Instructions
-
-  print*, "> generate plate mask"
-
-! ---- handle input
-
-  ! override default distance if passed
-  w_dist = "euclidean"
-  if (present(dist)) w_dist = dist
-
-  ! override default (world) form if passed
-  w_form = world%form
-  if (present(form)) w_form = form
-
-  ! pass plate sites (locations)
-  allocate( sites(size(world%plates),2) )
-  allocate( weights(size(world%plates)) )
-  sites(:,1) = world%plates(:)%loc(1)
-  sites(:,2) = world%plates(:)%loc(2)
-  weights = world%plates%w
-
-! ---- generate voronoi cell plates
-  call s_mth_compute_voronoi_cells(world%plate_mask, sites, &
-                                 & weights, w_dist, w_form)
-
-end subroutine generate_plate_mask
-
-
-
-! ==================================================================== !
-! -------------------------------------------------------------------- !
-subroutine generate_topography(world, seed)
+subroutine s_geo_generate_topography(world, seed)
 
 ! ==== Description
 !! Generates topography based on plate boundaries and relative motion,
 !! then applies exponential falloff into the plate interiors.
-!! TODO: add topographic noise
 !! TODO: scale, decay and damping factors as optional args
 !! TODO: use distance to boundary to grow topo instead? move away from coast
 !! NOTE: currently generated topo does not tile seamlessly. pass option
 
 ! ==== Declarations
-  type(typ_world), intent(inout)    :: world        !! world
-  integer(i4), intent(in), optional :: seed         !! rng seed
-  integer(i4)                       :: i, j, k, l   !! loop indeces
-  integer(i4)                       :: ip, iq       !! plate IDs
-  integer(i4)                       :: di, dj       !! neighbour offsets
-  real(wp), allocatable             :: v            !! relative plate velocity
-  real(wp)                          :: d, dx, dy    !! distance to nearest boundary, and components
-  real(wp)                          :: noise        !! topo noise (random number)
-  real(wp)                          :: uplift_scale !! single scale factor for topography
-  real(wp)                          :: decay_len, w !! topography decay length, weight term
-  real(wp)                          :: ocean_damp   !! bathymetry damping factor
-  real(wp)                          :: noise_damp   !! topographic noise damping factor
+  type(typ_world), intent(inout)    :: world         !! world
+  integer(i4), intent(in), optional :: seed          !! rng seed
+  integer(i4)                       :: i, j          !! loop indeces
+  integer(i4)                       :: pid1, pid2    !! plate IDs
+  integer(i4)                       :: di, dj        !! neighbour offsets
+  real(wp)                          :: v             !! relative plate velocity
+  real(wp)                          :: noise         !! topo noise (random number)
+  real(wp)                          :: uplift_scale  !! single scale factor for topography
+  real(wp)                          :: decay_len, w  !! topography decay length, weight term
+  real(wp)                          :: ocean_damp    !! bathymetry damping factor
+  real(wp)                          :: noise_damp    !! topographic noise damping factor
 
 ! ==== Instructions
 
@@ -396,40 +484,49 @@ subroutine generate_topography(world, seed)
   decay_len    = world%nx * 0.05_wp
 
   ! set topography to 0.0 everywhere
-  world%topography = 0.0_wp
+  world%grd_topo = 0.0_wp
 
 ! ---- generate topography at boundaries
 
-  ! generate topo
   do j = 1, world%ny
      do i = 1, world%nx
-        ip = world%plate_mask(i,j)
 
-        ! check 8 neighbors
-        do dj = -1, 1
-           do di = -1, 1
-              if (di .eq. 0 .and. dj .eq. 0) cycle
-              if ((i+di) .lt. 1 .or. (i+di) .gt. world%nx) cycle
-              if ((j+dj) .lt. 1 .or. (j+dj) .gt. world%ny) cycle
+        ! get plate ID
+        pid1 = world%grd_plate(i,j)
 
-              iq = world%plate_mask(i+di,j+dj)
+        ! right neighbour
+        if (i .lt. world%nx) then
+           ! get plate ID of cell neighbour
+           pid2 = world%grd_plate(i+1,j)
+           ! if plate IDs are different
+           if (pid1 .ne. pid2) then
+              ! relative plate velocity magnitude
+              v = sqrt( &
+                & (world%plates(pid2)%v(1) - world%plates(pid1)%v(1))**2 + &
+                & (world%plates(pid2)%v(2) - world%plates(pid1)%v(2))**2 )
+              ! generate velocity controlled topography
+              world%grd_topo(i,j) = max(world%grd_topo(i,j), v)
+           endif
+        endif
 
-              if (iq .ne. ip) then
-
-                 ! relative plate velocity magnitude
-                 v = sqrt( &
-                   & (world%plates(iq)%v(1)-world%plates(ip)%v(1))**2 + &
-                   & (world%plates(iq)%v(2)-world%plates(ip)%v(2))**2 )
-
-                 ! generate velocity controlled topography
-                 world%topography(i,j) = max(world%topography(i,j), v)
-
-              endif
-           enddo
-        enddo
+        ! down neighbour
+        if (j .lt. world%ny) then
+           ! get plate ID of cell neighbour
+           pid2 = world%grd_plate(i,j+1)
+           ! if plate IDs are different
+           if (pid1 .ne. pid2) then
+              ! relative plate velocity magnitude
+              v = sqrt( &
+                & (world%plates(pid2)%v(1) - world%plates(pid1)%v(1))**2 + &
+                & (world%plates(pid2)%v(2) - world%plates(pid1)%v(2))**2 )
+              ! generate velocity controlled topography
+              world%grd_topo(i,j) = max(world%grd_topo(i,j), v)
+           endif
+        endif
 
      enddo
   enddo
+
 
 ! ---- propagate boundary topo inward with decay
 
@@ -440,12 +537,12 @@ subroutine generate_topography(world, seed)
   do j = 1, world%ny
      do i = 1, world%nx
         if (i .gt. 1) then
-           world%topography(i,j) = max( world%topography(i,j), &
-                                 & world%topography(i-1,j) * w )
+           world%grd_topo(i,j) = max( world%grd_topo(i,j), &
+                                 & world%grd_topo(i-1,j) * w )
         endif
         if (j .gt. 1) then
-           world%topography(i,j) = max( world%topography(i,j), &
-                                 & world%topography(i,j-1) * w )
+           world%grd_topo(i,j) = max( world%grd_topo(i,j), &
+                                 & world%grd_topo(i,j-1) * w )
         endif
      enddo
   enddo
@@ -454,12 +551,12 @@ subroutine generate_topography(world, seed)
   do j = world%ny, 1, -1
      do i = world%nx, 1, -1
         if (i .lt. world%nx) then
-           world%topography(i,j) = max( world%topography(i,j), &
-                                 & world%topography(i+1,j) * w )
+           world%grd_topo(i,j) = max( world%grd_topo(i,j), &
+                                 & world%grd_topo(i+1,j) * w )
         endif
         if (j .lt. world%ny) then
-           world%topography(i,j) = max( world%topography(i,j), &
-                                 & world%topography(i,j+1) * w )
+           world%grd_topo(i,j) = max( world%grd_topo(i,j), &
+                                 & world%grd_topo(i,j+1) * w )
         endif
 
      enddo
@@ -470,24 +567,26 @@ subroutine generate_topography(world, seed)
      do i = 1, world%nx
 
         ! get plate id
-        ip = world%plate_mask(i,j)
+        pid1 = world%grd_plate(i,j)
 
         ! scale topography with uplift scale
-        world%topography(i,j) = world%topography(i,j) * uplift_scale
+        world%grd_topo(i,j) = world%grd_topo(i,j) * uplift_scale
 
         ! generate and add dampened noise
         call random_number(noise)
-        world%topography(i,j) = world%topography(i,j) + noise * noise_damp
+        world%grd_topo(i,j) = world%grd_topo(i,j) + noise * noise_damp
 
         ! dampen bathymetry
-        if (world%plates(ip)%d .eq. 1.0_wp) then
-           world%topography(i,j) = world%topography(i,j) * ocean_damp
+        if (world%plates(pid1)%d .eq. 1.0_wp) then
+           world%grd_topo(i,j) = world%grd_topo(i,j) * ocean_damp
         endif
 
      enddo
   enddo
 
-end subroutine generate_topography
+  !world%grd_topo = real(world%grd_ocean_bnd, kind=wp)
+
+end subroutine s_geo_generate_topography
 
 
 

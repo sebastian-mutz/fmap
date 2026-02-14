@@ -10,8 +10,8 @@ module fmap_dat
   private
 
   ! declare public procedures
-  public :: write_plates, read_plates
-  public :: write_plates_pgm, write_topography_pgm
+  public :: s_dat_write_plates, s_dat_read_plates
+  public :: s_dat_write_plates_pgm, s_dat_write_topography_pgm
   public :: s_dat_display_progress
 
 contains
@@ -19,7 +19,7 @@ contains
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine write_plates(outfile, p)
+subroutine s_dat_write_plates(outfile, p)
   character(len=*), intent(in) :: outfile
   type(typ_plate) , intent(in) :: p(:)
   integer(i4)                  :: i
@@ -34,12 +34,12 @@ subroutine write_plates(outfile, p)
   enddo
   close(std_rw)
 
-end subroutine write_plates
+end subroutine s_dat_write_plates
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine read_plates(infile, p)
+subroutine s_dat_read_plates(infile, p)
   character(len=*), intent(in)               :: infile
   type(typ_plate) , intent(out), allocatable :: p(:)
   integer                                    :: i, n
@@ -70,13 +70,13 @@ subroutine read_plates(infile, p)
   ! close file
   close(std_rw)
 
-end subroutine read_plates
+end subroutine s_dat_read_plates
 
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine write_plates_pgm(filename, world)
+subroutine s_dat_write_plates_pgm(filename, world)
 
 ! ==== Description
 !! Write world grid/plates into a PGM file. The grid is rank-2 array
@@ -123,12 +123,12 @@ subroutine write_plates_pgm(filename, world)
      do i = 1, world%nx
         if (i .lt. world%nx .and. j .lt. world%ny) then
            ! check for plate boundary
-           if (world%plate_mask(i,j) .ne. world%plate_mask(i+1,j) .or. &
-               world%plate_mask(i,j) .ne. world%plate_mask(i,j+1)) then
+           if (world%grd_plate(i,j) .ne. world%grd_plate(i+1,j) .or. &
+               world%grd_plate(i,j) .ne. world%grd_plate(i,j+1)) then
               image(i,j) = 0           ! boundary = black
            else
               ! assign plate colour or ocean colour
-              p = world%plate_mask(i,j)
+              p = world%grd_plate(i,j)
               if (world%plates(p)%d .eq. 1.0_wp) then
                  image(i,j) = 80       ! ocean plates
               else
@@ -137,7 +137,7 @@ subroutine write_plates_pgm(filename, world)
            endif
         else
            ! edges of the grid
-           p = world%plate_mask(i,j)
+           p = world%grd_plate(i,j)
            if (world%plates(p)%d .eq. 1.0_wp) then
               image(i,j) = 50           ! ocean plates
            else
@@ -210,14 +210,14 @@ subroutine write_plates_pgm(filename, world)
   deallocate(image)
   deallocate(col)
 
-end subroutine write_plates_pgm
+end subroutine s_dat_write_plates_pgm
 
 
 
 
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
-subroutine write_topography_pgm(filename, world)
+subroutine s_dat_write_topography_pgm(filename, world)
 
 ! ==== Description
 !! Writes topography to PGM.
@@ -237,8 +237,8 @@ subroutine write_topography_pgm(filename, world)
   print*, "> write topography to pgm"
 
   ! determine min and max topography
-  z_min = minval(world%topography)
-  z_max = maxval(world%topography)
+  z_min = minval(world%grd_topo)
+  z_max = maxval(world%grd_topo)
 
   ! avoid divide by zero
   if (z_max .gt. z_min) then
@@ -261,7 +261,7 @@ subroutine write_topography_pgm(filename, world)
 
         if (z_max .gt. z_min) then
            pixel_col = int( 50.0_wp + &
-                        & (world%topography(i,j) - z_min) * sfac )
+                        & (world%grd_topo(i,j) - z_min) * sfac )
         else
            pixel_col = 50
         endif
@@ -274,7 +274,7 @@ subroutine write_topography_pgm(filename, world)
   ! close
   close(std_rw)
 
-end subroutine write_topography_pgm
+end subroutine s_dat_write_topography_pgm
 
 
 ! ==================================================================== !

@@ -15,8 +15,8 @@ program voronoi_main
   !call fmap_read_plates("plates.asc", world%plates)
 
   ! regenerate cells with different settings (overwrite original cells)
-  call fmap_generate_plate_mask(world, "manhattan", "torus")
-  !call fmap_generate_plate_mask(world, "euclidean", "sphere")
+  call fmap_generate_plate_grids(world, "manhattan", "torus")
+  !call fmap_generate_plate_grids(world, "euclidean", "sphere")
 
   ! regenerate topography
   call fmap_generate_topography(world)

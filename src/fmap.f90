@@ -19,7 +19,7 @@ module fmap
   ! public procedures
   public :: fmap_generate_world
   public :: fmap_generate_plates
-  public :: fmap_generate_plate_mask
+  public :: fmap_generate_plate_grids
   public :: fmap_generate_plate_movement
   public :: fmap_generate_topography
   public :: fmap_write_plates, fmap_read_plates
@@ -31,31 +31,31 @@ module fmap
 
 interface fmap_generate_world
   !! generates a set of points (sites/centres of cells)
-  module procedure generate_world
+  module procedure s_geo_generate_world
 end interface
 
 ! ==== plates
 
 interface fmap_generate_plates
   !! generates a set of points (sites/centres of cells)
-  module procedure generate_plates
+  module procedure s_geo_generate_plates
 end interface
 
-interface fmap_generate_plate_mask
+interface fmap_generate_plate_grids
   !! generates plate mask by computing voronoi cells
-  module procedure generate_plate_mask
+  module procedure s_geo_generate_plate_grids
 end interface
 
 interface fmap_generate_plate_movement
   !! generate and balance plate movement
-  module procedure generate_plate_movement
+  module procedure s_geo_generate_plate_movement
 end interface
 
 ! ==== topography
 
 interface fmap_generate_topography
   !! generate topography
-  module procedure generate_topography
+  module procedure s_geo_generate_topography
 end interface
 
 ! ==================================================================== !
@@ -66,24 +66,24 @@ end interface
 
 interface fmap_write_plates
   !! write plates
-  module procedure write_plates
+  module procedure s_dat_write_plates
 end interface
 
 interface fmap_read_plates
   !! read plates
-  module procedure read_plates
+  module procedure s_dat_read_plates
 end interface
 
 interface fmap_write_plates_pgm
   !! writes voronoi cells into file
-  module procedure write_plates_pgm
+  module procedure s_dat_write_plates_pgm
 end interface
 
 ! ==== topography
 
 interface fmap_write_topography_pgm
   !! write topography in pgm file
-  module procedure write_topography_pgm
+  module procedure s_dat_write_topography_pgm
 end interface
 
 

@@ -26,11 +26,14 @@ type :: typ_world
   character(64) :: form !! world form; determines plate seed p
 
   ! plate related
-  integer(i4)    , allocatable :: plate_mask(:,:) !! geog. grid containing plate numbers
-  type(typ_plate), allocatable :: plates(:)       !! sectors / tectonic plates
+  type(typ_plate), allocatable :: plates(:)          !! sectors / tectonic plates
+  integer(i4)    , allocatable :: grd_plate(:,:)     !! geog. grid containing plate numbers
+  integer(i4)    , allocatable :: grd_landsea(:,:)   !! geog. grid storing land sea mask
+  integer(i4)    , allocatable :: grd_plate_bnd(:,:) !! geog. grid storing plate boundaries
+  integer(i4)    , allocatable :: grd_ocean_bnd(:,:) !! geog. grid storing ocean-cont. plate boundaries
 
   ! topography
-  real(wp)       , allocatable :: topography(:,:) !! geog. grid for topographic heigt
+  real(wp)       , allocatable :: grd_topo(:,:)      !! geog. grid for topographic height
 
 end type typ_world
 
