@@ -10,7 +10,7 @@ module fmap_con
 
   ! declare public procedures
   public :: c_pi
-  public :: c_eps
+  public :: c_eps, c_conv_tol
 
 ! ==== Declarations
 

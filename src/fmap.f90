@@ -17,6 +17,7 @@ module fmap
   public :: wp, i8, i4
 
   ! public procedures
+  public :: fmap_initialise_world
   public :: fmap_generate_world
   public :: fmap_generate_plates
   public :: fmap_generate_plate_grids
@@ -28,6 +29,11 @@ module fmap
 ! ==================================================================== !
 ! -------------------------------------------------------------------- !
 ! ---- world generation
+
+interface fmap_initialise_world
+  !! initialises world.
+  module procedure s_geo_initialise_world
+end interface
 
 interface fmap_generate_world
   !! generates a set of points (sites/centres of cells)

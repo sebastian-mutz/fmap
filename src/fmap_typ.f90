@@ -31,6 +31,7 @@ type :: typ_world
   integer(i4)    , allocatable :: grd_landsea(:,:)   !! geog. grid storing land sea mask
   integer(i4)    , allocatable :: grd_plate_bnd(:,:) !! geog. grid storing plate boundaries
   integer(i4)    , allocatable :: grd_ocean_bnd(:,:) !! geog. grid storing ocean-cont. plate boundaries
+  integer(i4)    , allocatable :: grd_coast_dst(:,:) !! geog. grid storing distance (in cells) to coast (grd_ocean_bnd)
 
   ! topography
   real(wp)       , allocatable :: grd_topo(:,:)      !! geog. grid for topographic height

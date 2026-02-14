@@ -8,6 +8,9 @@ program voronoi_main
   type(typ_world)          :: world
   type(typ_plate), allocatable :: plates(:)
 
+  ! initialise world
+  call fmap_initialise_world(world)
+
   ! generate world
   call fmap_generate_world(world)!, seed=593742182, form="sphere")
 
@@ -19,7 +22,7 @@ program voronoi_main
   !call fmap_generate_plate_grids(world, "euclidean", "sphere")
 
   ! regenerate topography
-  call fmap_generate_topography(world)
+  call fmap_generate_topography(world, form="torus")
 
   ! write into pgm file
   call fmap_write_plates_pgm('plates.pgm', world)
